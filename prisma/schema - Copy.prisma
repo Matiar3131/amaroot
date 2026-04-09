@@ -39,7 +39,6 @@ model Node {
   type      NodeType @default(SCHOOL)
   title     String   
   year      String?  
-  subject   String?  // নতুন ফিল্ড (Science/Arts/Commerce)
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
@@ -47,8 +46,6 @@ model Node {
 
   @@index([title])
 }
-
-
 
 enum UserRole {
   INDIVIDUAL

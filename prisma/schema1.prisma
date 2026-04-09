@@ -1,14 +1,3 @@
-// ১. প্রিজমা ক্লায়েন্ট জেনারেটর
-generator client {
-  provider = "prisma-client-js"
-}
-
-// ২. ডাটাবেজ কানেকশন (এখানে আপনার .env থেকে URL টি নিবে)
-datasource db {
-  provider = "postgresql" // আপনি যদি Neon বা অন্য Postgres ব্যবহার করেন
-  url      = env("DATABASE_URL")
-}
-
 model User {
   id           String    @id @default(cuid())
   name         String?
@@ -18,7 +7,7 @@ model User {
   nid          String?   @unique
   address      String?
   userType     UserRole  @default(INDIVIDUAL)
-  image        String?
+  
   companyName  String?
   officeEmail  String?   @unique
   isVerified   Boolean   @default(false)
@@ -39,7 +28,6 @@ model Node {
   type      NodeType @default(SCHOOL)
   title     String   
   year      String?  
-  subject   String?  // নতুন ফিল্ড (Science/Arts/Commerce)
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
@@ -47,8 +35,6 @@ model Node {
 
   @@index([title])
 }
-
-
 
 enum UserRole {
   INDIVIDUAL
@@ -62,10 +48,4 @@ enum NodeType {
   VILLAGE
   JOB
   OTHER
-}
-
-model NodeList {
-  id    String @id @default(cuid())
-  name  String @unique // যেমন: SCHOOL, COLLEGE, JOB, ইত্যাদি
-  label String        // যেমন: School, College, Job, ইত্যাদি (ইউজার যা দেখবে)
 }
