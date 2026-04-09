@@ -4,12 +4,11 @@ const prismaClientSingleton = () => {
   return new PrismaClient()
 }
 
-declare const globalThis: {
-  prismaGlobal: ReturnType<typeof prismaClientSingleton>;
-} & typeof global;
+// গ্লোবাল টাইপ ডিক্লেয়ারেশন যাতে ডেভেলপমেন্টে মাল্টিপল ক্লায়েন্ট তৈরি না হয়
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined
+}
 
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton()
+export const prisma = globalForPrisma.prisma ?? prismaClientSingleton()
 
-export default prisma
-
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma

@@ -7,16 +7,31 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  INDIVIDUAL
+  COMPANY
+}
+
 model User {
-  id        String   @id @default(cuid())
-  name      String?
-  phone     String   @unique
-  nid       String?  @unique
-  address   String?
-  createdAt DateTime @default(now())
+  id           String    @id @default(cuid())
+  name         String?
+  phone        String    @unique
+  email        String    @unique // লগইন এবং অফিস ভেরিফিকেশনের জন্য
+  password     String    // লগইন সিকিউরিটির জন্য
+  nid          String?   @unique
+  address      String?
+  userType     UserRole  @default(INDIVIDUAL)
   
-  // Self-relation for Auto-Networking (Reference base)
+  // কর্পোরেট কানেকশনের জন্য এক্সট্রা ফিল্ড
+  companyName  String?   // যদি কোম্পানি হিসেবে জয়েন করে
+  officeEmail  String?   @unique // অফিস নেটওয়ার্ক অটো-কানেক্টের জন্য
+  isVerified   Boolean   @default(false)
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // আপনার দেওয়া সেলফ-রিলেশন (Referral Network)
   referredById String?
-  referredBy   User?   @relation("UserNetwork", fields: [referredById], references: [id])
-  members      User[]  @relation("UserNetwork")
+  referredBy   User?     @relation("UserNetwork", fields: [referredById], references: [id])
+  members      User[]    @relation("UserNetwork")
 }

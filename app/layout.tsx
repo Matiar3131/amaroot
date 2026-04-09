@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { cn } from "@/lib/utils";
+import { Providers } from "@/components/Providers";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -22,11 +23,13 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn("font-sans", geist.variable)}>
       <body className={`${inter.className} bg-white text-gray-900`}>
+        <Providers>
         <Navbar />
         <main className="min-h-screen">
           {children}
         </main>
         <Footer />
+        </Providers>
       </body>
     </html>
   );
