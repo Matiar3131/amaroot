@@ -6,21 +6,19 @@ import RootClient from "./RootClient";
 export default async function RootPage() {
   const session = await auth();
 
-  // ১. সেশন প্রোটেকশন
-  if (!session || !session.user) {
-    redirect("/login");
-  }
+  if (!session || !session.user) redirect("/login");
 
-  // ২. ডাটাবেজ থেকে ইউজার ভিত্তিক নোড নিয়ে আসা
+  const userId = (session.user as any).id as string;
+
   const userNodes = await prisma.node.findMany({
-    where: {
-      userId: session.user.id
-    },
-    orderBy: {
-      createdAt: 'desc'
-    }
+    where: { userId },
+    orderBy: { createdAt: "desc" },
   });
 
-  // ৩. ক্লায়েন্ট কম্পোনেন্টে ডেটা পাস করা
-  return <RootClient initialNodes={userNodes} />;
+  return (
+    <RootClient
+      userId={userId}
+      initialNodes={JSON.parse(JSON.stringify(userNodes))}
+    />
+  );
 }

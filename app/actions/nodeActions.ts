@@ -1,110 +1,68 @@
-"use server"
+"use server";
 
 import { prisma } from "@/app/lib/prisma";
-import { auth } from "@/app/lib/auth";
 import { revalidatePath } from "next/cache";
 
-/**
- * নতুন নোড (স্কুল/কলেজ/জব) তৈরি করার ফাংশন
- */
-export async function createNode(data: { 
-  type: string, 
-  title: string, 
-  year?: string, 
-  subject?: string // Designation বা Subject এর জন্য
-}) {
+// ১. নোড ক্রিয়েট ফাংশন
+export async function createNode(payload: any, userId: string) {
   try {
-    const session = await auth();
-
-    // ইউজার লগইন চেক
-    if (!session || !session.user) {
-      return { error: "দয়া করে আগে লগইন করুন।" };
-    }
-
-    // ডাটাবেজে নতুন নোড তৈরি করা
     const newNode = await prisma.node.create({
       data: {
-        type: data.type.toUpperCase() as any, 
-        title: data.title.trim(), 
-        year: data.year,
-        subject: data.subject?.trim(), // নতুন যোগ করা হয়েছে
-        userId: session.user.id,
+        title: payload.title,
+        type: payload.type,
+        metadata: payload.metadata || {},
+        isPublic: true,
+        isCommon: payload.isCommon || false,
+        userId: userId,
       },
     });
-
     revalidatePath("/root");
-    return { success: true, node: newNode };
-
-  } catch (error: any) {
-    console.error("Node creation error:", error);
-    
-    // NID বা অন্য কোনো Unique Constraint এরর হ্যান্ডলিং (যদি এখানে দরকার হয়)
-    if (error.code === 'P2002') {
-      return { error: "NID, এই তথ্যটি ইতিমধ্যে ডাটাবেজে আছে।" };
-    }
-
-    return { error: "ডেটা সেভ করতে সমস্যা হয়েছে।" };
+    return { success: true, node: JSON.parse(JSON.stringify(newNode)) };
+  } catch (error) {
+    console.error("Create Node Error:", error);
+    return { success: false, error: "Failed to save" };
   }
 }
 
-/**
- * একই প্রতিষ্ঠানের অন্য মেম্বারদের খুঁজে বের করার ফাংশন (Internal Connectivity)
- */
-export async function getNetworkConnections() {
+// ২. নেটওয়ার্ক কানেকশন ফাংশন
+export async function getNetworkConnections(currentUserId: string) {
   try {
-    const session = await auth();
-    if (!session || !session.user) return [];
-
-    // ১. ইউজারের সব নোড টাইটেল বের করা
-    const userNodes = await prisma.node.findMany({
-      where: { userId: session.user.id },
-      select: { title: true }
-    });
-
-    if (userNodes.length === 0) return [];
-
-
-    const titles = userNodes.map((n: { title: string }) => n.title);
-
-    // ২. একই টাইটেলধারী অন্য ইউজারদের খুঁজে বের করা
     const connections = await prisma.node.findMany({
       where: {
-        title: { 
-          in: titles,
-          mode: 'insensitive' 
-        },
-        userId: { not: session.user.id }
+        NOT: { userId: currentUserId },
+        isPublic: true,
       },
       include: {
         user: {
-          select: {
-            name: true,
-            image: true,
-            email: true,
-            userType: true
-          }
-        }
+          select: { name: true, image: true },
+        },
       },
-      orderBy: {
-        createdAt: 'desc'
-      }
+      take: 4,
+      orderBy: { createdAt: "desc" },
     });
 
-    return connections;
+    return JSON.parse(JSON.stringify(connections));
   } catch (error) {
-    console.error("Network fetch error:", error);
+    console.error("Connection Error:", error);
     return [];
   }
 }
 
-export async function getNodeList() {
-  try {
-    const list = await prisma.nodeList.findMany({
-      orderBy: { label: 'asc' }
-    });
-    return list;
-  } catch (error) {
-    console.error("Error fetching node list:", error);
-    return [];
-  }
+// নোড ডিলিট করার ফাংশন
+export async function deleteNode(nodeId: string) {
+    try {
+        await prisma.node.delete({
+            where: {
+                id: nodeId,
+            },
+        });
+
+        // ডিলিট করার পর পেজটি রিভ্যালিডেট করুন যাতে ডাটা আপডেট হয়
+        revalidatePath("/root"); 
+        
+        return { success: true, message: "Node deleted successfully" };
+    } catch (error) {
+        console.error("Delete Error:", error);
+        return { success: false, message: "Failed to delete node" };
+    }
 }
