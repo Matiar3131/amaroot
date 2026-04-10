@@ -42,6 +42,10 @@ model Node {
   subject   String?  // নতুন ফিল্ড (Science/Arts/Commerce)
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // --- নিচের দুটি লাইন যোগ করুন ---
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+  // ----------------------------
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -68,4 +72,34 @@ model NodeList {
   id    String @id @default(cuid())
   name  String @unique // যেমন: SCHOOL, COLLEGE, JOB, ইত্যাদি
   label String        // যেমন: School, College, Job, ইত্যাদি (ইউজার যা দেখবে)
+}
+
+// প্রতিষ্ঠানের মাস্টার লিস্ট (Autocomplete এর জন্য এখান থেকে ডেটা যাবে)
+model Institution {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  type      NodeType // Enum: SCHOOL, COLLEGE, UNIVERSITY, CORPORATE
+  district  String?
+  nodes     Node[]   // ইউজারের প্রোফাইলের সাথে রিলেশন
+}
+
+// সাবজেক্ট বা ডিপার্টমেন্টের লিস্ট
+model Subject {
+  id    String @id @default(cuid())
+  name  String @unique // যেমন: Computer Science, Accounting
+}
+
+// জেলার লিস্ট
+model District {
+  id         String    @id @default(cuid())
+  name       String    @unique
+  upazilas   Upazila[]
+}
+
+// উপজেলার লিস্ট
+model Upazila {
+  id         String   @id @default(cuid())
+  name       String
+  districtId String
+  district   District @relation(fields: [districtId], references: [id])
 }
