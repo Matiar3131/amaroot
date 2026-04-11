@@ -1,66 +1,121 @@
-// ১. প্রিজমা ক্লায়েন্ট জেনারেটর
 generator client {
   provider = "prisma-client-js"
 }
 
-// ২. ডাটাবেজ কানেকশন
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id           String    @id @default(cuid())
-  name         String?
-  phone        String    @unique
-  email        String    @unique
-  password     String
-  nid          String?   @unique
-  address      String?
-  userType     UserRole  @default(INDIVIDUAL)
-  image        String?
-  companyName  String?
-  officeEmail  String?   @unique
-  isVerified   Boolean   @default(false)
-  
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+model District {
+  id      String    @id
+  name    String    @unique
+  Upazila Upazila[]
+}
 
-  // রিলেশনসমূহ
-  nodes        Node[]    
+model Hall {
+  id            String      @id
+  name          String
+  institutionId String
+  Institution   Institution @relation(fields: [institutionId], references: [id])
+}
 
-  referredById String?
-  referredBy   User?     @relation("UserNetwork", fields: [referredById], references: [id])
-  members      User[]    @relation("UserNetwork")
+model Institution {
+id            String       @id @default(cuid()) // এটি যোগ করুন
+  name          String       @unique
+  type       InsNodeType
+  short_name String?
+  location   String?
+  district   String?
+  config     Json?
+  createdAt  DateTime    @default(now())
+  updatedAt     DateTime     @updatedAt
+  Hall       Hall[]
+  Node       Node[]
 }
 
 model Node {
-  id            String   @id @default(cuid())
-  type          NodeType @default(SCHOOL)
-  title         String   // যেমন: "বড়খাতা উচ্চ বিদ্যালয়" বা "স্থায়ী ঠিকানা"
-  year          String?  
-  subject       String?  // Science/Arts/Commerce বা Dept
-  
-  // --- নতুন ফিল্ডসমূহ ---
-  metadata      Json?    // বাসা নং, রোড, ইউনিয়ন, লিঙ্গ, ধর্ম সব এখানে থাকবে
-  isPublic      Boolean  @default(true) // Hide/Show লজিক
-  isCommon      Boolean  @default(false) // এটি কি কমন ফিল্ড (BIO/ADDR) নাকি ইউজার জেনারেটেড?
-  // --------------------
-
+  id            String       @id @default(cuid())
+  type          NodeType     @default(SCHOOL)
+  title         String
+  year          String?
+  subject       String?
+  metadata      Json?
+  isPublic      Boolean      @default(true)
+  isCommon      Boolean      @default(false)
   userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
   institutionId String?
-  institution   Institution? @relation(fields: [institutionId], references: [id])
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt           // @updatedAt যোগ করুন
+  Institution   Institution? @relation(fields: [institutionId], references: [id])
+  User          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([title])
   @@index([type])
 }
 
-// NodeType এনামটি আপডেট করা হয়েছে সব টাইপ সাপোর্ট করার জন্য
+model NodeList {
+ id        String  @id @default(cuid())
+  name      String  @unique
+  label     String
+  category  String  @default("INDIVIDUAL")
+  isDefault Boolean @default(false)
+}
+
+model Subject {
+  id         String  @id
+  name       String  @unique
+  short_name String?
+}
+
+model Union {
+  id        String  @id
+  name      String
+  upazilaId String
+  Upazila   Upazila @relation(fields: [upazilaId], references: [id])
+}
+
+model Upazila {
+  id         String   @id
+  name       String
+  districtId String
+  Union      Union[]
+  District   District @relation(fields: [districtId], references: [id])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String?
+  phone        String   @unique
+  email        String   @unique
+  password     String
+  nid          String?  @unique
+  address      String?
+  userType     UserRole @default(INDIVIDUAL)
+  image        String?
+  companyName  String?
+  officeEmail  String?  @unique
+  isVerified   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  referredById String?
+  nodes        Node[]
+  User         User?    @relation("UserToUser", fields: [referredById], references: [id])
+  other_User   User[]   @relation("UserToUser")
+}
+
+enum InsNodeType {
+  SCHOOL
+  COLLEGE
+  UNIVERSITY
+  CADET_COLLEGE
+  MEDICAL_COLLEGE
+  MADRASA
+  POLYTECHNIC
+  MARINE_ACADEMY
+  ARMY_INSTITUTE
+}
+
 enum NodeType {
   PR_ADDR
   PM_ADDR
@@ -81,52 +136,52 @@ enum NodeType {
   OTHER
 }
 
-model NodeList {
-  id        String  @id @default(cuid())
-  name      String  @unique 
-  label     String 
-  category  String  @default("INDIVIDUAL") // INDIVIDUAL বা CORPORATE আলাদা করার জন্য
-  isDefault Boolean @default(false) 
-}
-
-model Institution {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  type      NodeType 
-  district  String?
-  nodes     Node[]   
-}
-
-// সাবজেক্ট বা ডিপার্টমেন্টের লিস্ট
-model Subject {
-  id    String @id @default(cuid())
-  name  String @unique 
-}
-
-// জেলার লিস্ট
-model District {
-  id         String    @id @default(cuid())
-  name       String    @unique
-  upazilas   Upazila[]
-}
-
-// উপজেলার লিস্ট
-model Upazila {
-  id         String   @id @default(cuid())
-  name       String
-  districtId String
-  district   District @relation(fields: [districtId], references: [id])
-  unions     Union[]
-}
-
-model Union {
-  id        String   @id @default(cuid())
-  name      String
-  upazilaId String
-  upazila   Upazila  @relation(fields: [upazilaId], references: [id])
-}
-
 enum UserRole {
   INDIVIDUAL
   COMPANY
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String   @unique 
+  industry    String   
+  category    String?  
+  logoUrl     String?  
+  location    String?  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  experiences WorkExperience[]
+  @@index([industry])
+}
+
+model WorkExperience {
+  id             String    @id @default(cuid())
+  userId         String    
+  orgId          String    
+  designation    String    
+  desk           String?   
+  employmentType String    @default("Full-time") 
+  fromDate       DateTime
+  toDate         DateTime? 
+  isCurrent      Boolean   @default(false)
+  expertise      String?   
+  jobDetails     String?   @db.Text 
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  @@index([userId])
+  @@index([orgId])
+  @@index([designation])
+}
+
+model OrganizationStructure {
+  id          String   @id @default(cuid())
+  sector      String   // e.g., "Banking"
+  orgName     String   // e.g., "Dutch-Bangla Bank PLC"
+  department  String   // e.g., "IT Division"
+  branch      String?  // e.g., "Head Office"
+  
+  @@index([sector])
+  @@index([orgName])
 }

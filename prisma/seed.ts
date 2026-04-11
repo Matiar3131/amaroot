@@ -1,4 +1,7 @@
 import { PrismaClient } from '@prisma/client'
+// crypto বিল্ট-ইন মডিউল আইডি জেনারেট করার জন্য
+import crypto from 'crypto' 
+
 const prisma = new PrismaClient()
 
 async function main() {
@@ -30,7 +33,11 @@ async function main() {
   console.log('Seeding NodeList...');
   for (const node of nodes) {
     await prisma.nodeList.create({
-      data: node
+      data: {
+        ...node,
+        // যেহেতু স্কিমাতে @default(cuid()) নেই, তাই ম্যানুয়ালি আইডি দিচ্ছি
+        id: crypto.randomUUID() 
+      }
     });
   }
 
@@ -44,4 +51,4 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect()
-  })
+  });

@@ -10,6 +10,11 @@
 !.yarn/releases
 !.yarn/versions
 
+# Backup files
+*- Copy.*
+*.bk
+*.bak
+
 # =========================
 # Build & Production
 # =========================
