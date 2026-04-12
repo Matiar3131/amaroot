@@ -2,56 +2,67 @@
 
 import { prisma } from "@/app/lib/prisma";
 
-/**
- * ইউজার যখন প্রতিষ্ঠানের নাম টাইপ করবে তখন সাজেশনের জন্য
- */
-export async function searchOrganizations(query: string) {
-  if (!query || query.length < 2) return [];
-
+export async function getOrgStructure(filter: { sector?: string, orgName?: string, department?: string }) {
   try {
-    return await prisma.organization.findMany({
-      where: {
-        name: {
-          contains: query,
-          mode: 'insensitive',
-        },
-      },
-      take: 5,
-      select: { id: true, name: true, industry: true }
-    });
-  } catch (error) {
-    console.error("Search Org Error:", error);
-    return [];
-  }
-}
-
-/**
- * সেক্টর অনুযায়ী কোম্পানি এবং কোম্পানি অনুযায়ী ডিপার্টমেন্ট পপুলেট করার জন্য
- */
-export async function getOrgStructure(filter: { sector?: string, orgName?: string }) {
-  try {
-    // ১. শুধু সেক্টর দেওয়া থাকলে ওই সেক্টরের ইউনিক প্রতিষ্ঠানের নাম পাঠাবে
+    // ১. নির্দিষ্ট সেক্টরের কোম্পানিগুলো বের করা
     if (filter.sector && !filter.orgName) {
       const orgs = await prisma.organizationStructure.findMany({
         where: { sector: filter.sector },
+        select: { orgName: true },
         distinct: ['orgName'],
-        select: { orgName: true }
+        orderBy: { orgName: 'asc' }
       });
-      return orgs.map(o => o.orgName);
+      return orgs.map((o) => o.orgName);
     }
 
-    // ২. প্রতিষ্ঠানের নাম দেওয়া থাকলে ওই প্রতিষ্ঠানের সব ডিপার্টমেন্ট পাঠাবে
-    if (filter.orgName) {
+    // ২. নির্দিষ্ট কোম্পানির ডিপার্টমেন্টগুলো বের করা
+    if (filter.orgName && !filter.department) {
       const depts = await prisma.organizationStructure.findMany({
         where: { orgName: filter.orgName },
-        select: { department: true }
+        select: { department: true },
+        distinct: ['department'],
+        orderBy: { department: 'asc' }
       });
-      return depts.map(d => d.department);
+      return depts.map((d) => d.department);
+    }
+
+    // ৩. নির্দিষ্ট কোম্পানি ও ডিপার্টমেন্টের আন্ডারে থাকা ইউনিক ডেস্কগুলো বের করা
+    if (filter.orgName && filter.department) {
+      const desks = await prisma.organizationStructure.findMany({
+        where: { 
+          orgName: filter.orgName,
+          department: filter.department,
+          // সংশোধিত লাইন: 'not: null' হবে, 'not: not' নয়
+          desk: { not: null, notIn: [""] } 
+        },
+        select: { desk: true },
+        distinct: ['desk'],
+        orderBy: { desk: 'asc' }
+      });
+      // null ভ্যালু ফিল্টার আউট করে স্ট্রিং অ্যারে রিটার্ন করা
+      return desks.map((d) => d.desk).filter((d): d is string => !!d);
     }
   } catch (error) {
-    console.error("Get Org Structure Error:", error);
+    console.error("Fetch failed:", error);
     return [];
   }
-  
   return [];
+}
+
+// ৪. পদবী (Designation) বের করার অ্যাকশন
+export async function getDesignations(sector: string, orgName: string) {
+  try {
+    const data = await prisma.sectorOrgWiseDesignation.findMany({
+      where: {
+        sector,
+        OR: [{ orgName: orgName }, { orgName: "Global" }]
+      },
+      select: { designation: true },
+      orderBy: { designation: 'asc' }
+    });
+    return data.map(d => d.designation);
+  } catch (error) {
+    console.error("Designation fetch failed:", error);
+    return [];
+  }
 }

@@ -150,29 +150,7 @@ model Organization {
   location    String?  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  experiences WorkExperience[]
   @@index([industry])
-}
-
-model WorkExperience {
-  id             String    @id @default(cuid())
-  userId         String    
-  orgId          String    
-  designation    String    
-  desk           String?   
-  employmentType String    @default("Full-time") 
-  fromDate       DateTime
-  toDate         DateTime? 
-  isCurrent      Boolean   @default(false)
-  expertise      String?   
-  jobDetails     String?   @db.Text 
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  organization   Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  @@index([userId])
-  @@index([orgId])
-  @@index([designation])
 }
 
 model OrganizationStructure {
@@ -181,7 +159,59 @@ model OrganizationStructure {
   orgName     String   // e.g., "Dutch-Bangla Bank PLC"
   department  String   // e.g., "IT Division"
   branch      String?  // e.g., "Head Office"
+  desk        String?  // e.g., "FEX"
   
   @@index([sector])
   @@index([orgName])
+}
+
+model WorkExperience {
+  id           String    @id @default(cuid())
+  userId       String    
+  companyName  String    // orgId এর বদলে এখন এটিই মূল কোম্পানি আইডেন্টিফায়ার
+  
+  // নতুন ফিল্ডসমূহ যা UI-তে আছে
+  sector       String?   // Sector/Industry এর জন্য
+  department   String?   // Department/Branch এর জন্য
+  
+  designation  String    
+  desk         String?   // UI-তে থাকা Desk/Unit এর জন্য
+  fromDate     DateTime
+  toDate       DateTime? 
+  isCurrent    Boolean   @default(false)
+  expertise    String?   // UI-তে থাকা Expertness/Core Skills এর জন্য
+  jobDetails   String?   @db.Text // UI-তে থাকা Key Responsibilities এর জন্য
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // রিলেশনটি মুছে দিতে হবে যদি আপনি Organization টেবিলের সাথে কানেক্ট না করতে চান।
+  // অথবা যদি কানেক্ট করতে চান, তবে companyName কলামটি দিয়ে রিলেশন করতে হবে (যা সাধারণত ID দিয়ে করা হয়)।
+  // সহজ করার জন্য আপাতত নিচের রিলেশন এবং ইনডেক্স লাইনগুলো এভাবে আপডেট করুন:
+
+  @@index([userId])
+  @@index([companyName]) // orgId এর বদলে companyName ইনডেক্স করুন দ্রুত সার্চের জন্য
+  @@index([designation])
+}
+
+model SectorOrgWiseDesignation {
+  id               String   @id @default(cuid())
+  sector           String   // e.g., "Banking", "IT"
+  orgName          String   // e.g., "Jamuna Bank PLC" or "Global" (যদি সবার জন্য কমন হয়)
+  designation      String   // e.g., "Senior Officer", "Software Engineer"
+  
+  @@index([sector])
+  @@index([orgName])
+}
+
+model SkillMaster {
+  id        String   @id @default(cuid())
+  name      String   @unique // ডিসপ্লে নাম: "React Native"
+  slug      String   @unique // ইউনিক নাম: "react-native" (সার্চের জন্য সুবিধা)
+  category  String?  // IT, Creative, Marketing ইত্যাদি (ঐচ্ছিক)
+  count     Int      @default(1) // কতজন ইউজার এই স্কিল ব্যবহার করছে
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug]) // সার্চ স্পিড বাড়ানোর জন্য ইনডেক্স
 }

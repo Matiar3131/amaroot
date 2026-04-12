@@ -1,211 +1,169 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { searchOrganizations } from "@/app/actions/orgActions"; 
+import React, { useState, useEffect } from "react";
+import { getOrgStructure, getDesignations } from "@/app/actions/orgActions";
+import { 
+  Briefcase, Building2, Layers, MapPin, 
+  UserCircle, Calendar, FileText, Save, CheckCircle2, Loader2 
+} from "lucide-react";
 
-interface WorkExpNodeProps {
-  onSave: (data: any) => void;
-}
+export default function WorkExpNode({ onSave }: { onSave?: (data: any) => Promise<void> }) {
+  const [sectors] = useState(["Banking", "IT", "Manufacturing", "Telecommunication", "Education"]);
+  const [selectedSector, setSelectedSector] = useState("");
+  const [organizations, setOrganizations] = useState<string[]>([]);
+  const [selectedOrg, setSelectedOrg] = useState("");
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [selectedDept, setSelectedDept] = useState("");
+  const [designations, setDesignations] = useState<string[]>([]);
+  const [selectedDesignation, setSelectedDesignation] = useState("");
+  const [desks, setDesks] = useState<string[]>([]);
+  const [deskUnit, setDeskUnit] = useState("");
+  
+  const [expertness, setExpertness] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [isCurrent, setIsCurrent] = useState(false);
+  const [jobDetails, setJobDetails] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-export default function WorkExpNode({ onSave }: WorkExpNodeProps) {
-  const [work, setWork] = useState({
-    industry: "Banking",
-    company: "",
-    dept: "",
-    designation: "",
-    desk: "",
-    expertness: "",
-    fromDate: "",
-    toDate: "",
-    isCurrent: false,
-    jobDescription: "",
-  });
-
-  const [orgSuggestions, setOrgSuggestions] = useState<any[]>([]);
-
-  // কোম্পানি সাজেশনের জন্য Debounce Logic
   useEffect(() => {
-    const delayDebounceFn = setTimeout(async () => {
-      if (work.company.length > 1) {
-        const results = await searchOrganizations(work.company);
-        // শুধুমাত্র সিলেক্টেড ইন্ডাস্ট্রির কোম্পানি ফিল্টার করতে চাইলে এখানে লজিক দেওয়া যায়
-        setOrgSuggestions(results);
-      } else {
-        setOrgSuggestions([]);
-      }
-    }, 300);
-    return () => clearTimeout(delayDebounceFn);
-  }, [work.company]);
+    if (selectedSector) {
+      setIsLoading(true);
+      getOrgStructure({ sector: selectedSector }).then(data => {
+        setOrganizations(data);
+        setIsLoading(false);
+      });
+    }
+  }, [selectedSector]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave(work);
-    // সেভ হওয়ার পর ফর্ম রিসেট বা অ্যাড মোর অপশন UI হ্যান্ডেল করবে
+  useEffect(() => {
+    if (selectedOrg) {
+      setIsLoading(true);
+      Promise.all([
+        getOrgStructure({ orgName: selectedOrg }),
+        getDesignations(selectedSector, selectedOrg)
+      ]).then(([deptData, desigData]) => {
+        setDepartments(deptData);
+        setDesignations(desigData);
+        setIsLoading(false);
+      });
+    }
+  }, [selectedOrg, selectedSector]);
+
+  useEffect(() => {
+    if (selectedOrg && selectedDept) {
+      setIsLoading(true);
+      getOrgStructure({ orgName: selectedOrg, department: selectedDept }).then(data => {
+        setDesks(data);
+        setIsLoading(false);
+      });
+    }
+  }, [selectedDept, selectedOrg]);
+
+  const handleSave = async () => {
+    if (!selectedSector || !selectedOrg || !selectedDesignation || !dateFrom) {
+      alert("প্রয়োজনীয় তথ্য (Sector, Company, Designation, Start Date) পূরণ করুন।");
+      return;
+    }
+    const metadata = {
+      sector: selectedSector,
+      company: selectedOrg,
+      department: selectedDept,
+      designation: selectedDesignation,
+      deskUnit,
+      expertness,
+      dateFrom, 
+      dateTo: isCurrent ? "Present" : dateTo,
+      isCurrent,
+      jobDetails
+    };
+    if (onSave) await onSave(metadata);
   };
 
   return (
-    <form 
-      onSubmit={handleSubmit} 
-      className="p-6 bg-white rounded-xl border border-gray-100 shadow-lg flex flex-col gap-4 max-w-2xl"
-    >
-      <h3 className="text-lg font-bold mb-2 text-slate-800 border-b pb-2 flex items-center gap-2">
-        💼 কাজের অভিজ্ঞতা (Professional Experience)
-      </h3>
+    <div className="max-w-4xl mx-auto p-8 border border-blue-50 rounded-[2rem] shadow-xl bg-white space-y-8">
+      <div className="flex items-center justify-between border-b pb-6">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-blue-50 rounded-2xl text-blue-600">
+            <Briefcase size={28} />
+          </div>
+          <div>
+            <h3 className="text-2xl font-black text-gray-900">Professional Experience</h3>
+            <p className="text-sm text-gray-500">Manage your employment history</p>
+          </div>
+        </div>
+        {isLoading && <Loader2 className="animate-spin text-blue-500" />}
+      </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        {/* ১. সেক্টর/ইন্ডাস্ট্রি (সবার উপরে) */}
-        <div className="col-span-2 flex flex-col gap-1">
-          <label className="text-sm font-semibold text-gray-700">সেক্টর/ইন্ডাস্ট্রি</label>
-          <select 
-            value={work.industry}
-            onChange={(e) => setWork({...work, industry: e.target.value})}
-            className="border p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-          >
-            <option value="Banking">Banking</option>
-            <option value="IT & Software">IT & Software</option>
-            <option value="Education">Education</option>
-            <option value="RMG">RMG & Textile</option>
-            <option value="Conglomerate">Conglomerate</option>
-            <option value="Other">Other</option>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase text-gray-400 flex items-center gap-2"><Layers size={14} /> Sector</label>
+          <select className="w-full bg-gray-50 border-none rounded-2xl p-4 font-medium" value={selectedSector} onChange={(e) => setSelectedSector(e.target.value)}>
+            <option value="">Select Industry</option>
+            {sectors.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
 
-        {/* ২. প্রতিষ্ঠানের নাম (Auto-complete) */}
-        <div className="col-span-2 flex flex-col gap-1 relative">
-          <label className="text-sm font-semibold text-gray-700">প্রতিষ্ঠানের নাম</label>
-          <input 
-            required
-            list="org-list"
-            value={work.company}
-            onChange={(e) => setWork({...work, company: e.target.value})}
-            className="border p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
-            placeholder="যেমন: Dutch-Bangla Bank PLC"
-          />
-          <datalist id="org-list">
-            {orgSuggestions.map((org, index) => (
-              <option key={index} value={org.name}>
-                {org.industry}
-              </option>
-            ))}
-          </datalist>
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase text-gray-400 flex items-center gap-2"><Building2 size={14} /> Company</label>
+          <select className="w-full bg-gray-50 border-none rounded-2xl p-4 font-medium" value={selectedOrg} disabled={!selectedSector} onChange={(e) => setSelectedOrg(e.target.value)}>
+            <option value="">Choose Company</option>
+            {organizations.map(org => <option key={org} value={org}>{org}</option>)}
+          </select>
         </div>
 
-        {/* ৩. Department/Division/Branch */}
-        <div className="col-span-2 flex flex-col gap-1">
-          <label className="text-sm font-semibold text-gray-700">Department/Division/Branch</label>
-          <input 
-            value={work.dept}
-            onChange={(e) => setWork({...work, dept: e.target.value})}
-            className="border p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
-            placeholder="যেমন: IT Division / Retail Banking"
-          />
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase text-gray-400 flex items-center gap-2"><MapPin size={14} /> Department</label>
+          <select className="w-full bg-gray-50 border-none rounded-2xl p-4 font-medium" value={selectedDept} disabled={!selectedOrg} onChange={(e) => setSelectedDept(e.target.value)}>
+            <option value="">Select Department</option>
+            {departments.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
         </div>
 
-        {/* ৪. পদবী (Designation) */}
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-semibold text-gray-700">পদবী (Designation)</label>
-          <input 
-            required
-            value={work.designation}
-            onChange={(e) => setWork({...work, designation: e.target.value})}
-            className="border p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
-            placeholder="যেমন: Senior Officer"
-          />
-        </div>
-
-        {/* ৫. Desk/Unit */}
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-semibold text-gray-700">Desk/Unit</label>
-          <input 
-            value={work.desk}
-            onChange={(e) => setWork({...work, desk: e.target.value})}
-            className="border p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
-            placeholder="যেমন: Foreign Exchange / Software Dev"
-          />
-        </div>
-
-        {/* ৬. Expertness Field */}
-        <div className="col-span-2 flex flex-col gap-1">
-          <label className="text-sm font-semibold text-gray-700">Expertness (আপনার বিশেষ দক্ষতা)</label>
-          <input 
-            value={work.expertness}
-            onChange={(e) => setWork({...work, expertness: e.target.value})}
-            className="border p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
-            placeholder="যেমন: Core Banking System, Java, React"
-          />
-        </div>
-
-        {/* ৭. সময়কাল */}
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-semibold text-gray-700">কবে থেকে (Join Date)</label>
-          <input 
-            type="date"
-            required
-            value={work.fromDate}
-            onChange={(e) => setWork({...work, fromDate: e.target.value})}
-            className="border p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-semibold text-gray-700">কবে পর্যন্ত (End Date)</label>
-          <input 
-            type="date"
-            disabled={work.isCurrent}
-            value={work.isCurrent ? "" : work.toDate}
-            onChange={(e) => setWork({...work, toDate: e.target.value})}
-            className={`border p-2.5 rounded-lg outline-none ${work.isCurrent ? 'bg-gray-100 text-gray-400' : 'focus:ring-2 focus:ring-blue-500'}`} 
-          />
-        </div>
-
-        {/* বর্তমানে কাজ করছেন কি না */}
-        <div className="col-span-2 flex items-center gap-2">
-          <input 
-            type="checkbox" 
-            id="current"
-            checked={work.isCurrent}
-            onChange={(e) => setWork({...work, isCurrent: e.target.checked})}
-            className="w-4 h-4 accent-slate-800"
-          />
-          <label htmlFor="current" className="text-sm font-medium text-gray-600 cursor-pointer">আমি বর্তমানে এখানে কাজ করছি</label>
-        </div>
-
-        {/* ৮. Job Description (Max 500 chars) */}
-        <div className="col-span-2 flex flex-col gap-1">
-          <div className="flex justify-between items-center">
-            <label className="text-sm font-semibold text-gray-700">Job Description</label>
-            <span className={`text-xs ${work.jobDescription.length > 500 ? 'text-red-500' : 'text-gray-400'}`}>
-              {work.jobDescription.length}/500
-            </span>
-          </div>
-          <textarea 
-            maxLength={500}
-            rows={3}
-            value={work.jobDescription}
-            onChange={(e) => setWork({...work, jobDescription: e.target.value})}
-            className="border p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-            placeholder="আপনার দায়িত্ব সংক্ষেপে লিখুন..."
-          />
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase text-gray-400 flex items-center gap-2"><UserCircle size={14} /> Role</label>
+          <select className="w-full bg-gray-50 border-none rounded-2xl p-4 font-medium" value={selectedDesignation} disabled={!selectedOrg} onChange={(e) => setSelectedDesignation(e.target.value)}>
+            <option value="">Choose Role</option>
+            {designations.map(des => <option key={des} value={des}>{des}</option>)}
+          </select>
         </div>
       </div>
 
-      <button 
-        type="submit" 
-        className="bg-slate-800 text-white py-3 rounded-lg font-bold hover:bg-black transition-all shadow-lg active:scale-95"
-      >
-        অভিজ্ঞতা সেভ করুন
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase text-gray-400 flex items-center gap-2"><Layers size={14} /> Desk/Unit</label>
+          <select className="w-full bg-gray-50 border-none rounded-2xl p-4 font-medium" disabled={!selectedDesignation || !selectedDept} value={deskUnit} onChange={(e) => setDeskUnit(e.target.value)}>
+            <option value="">Choose Desk</option>
+            {desks.map((d, i) => <option key={i} value={d}>{d}</option>)}
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold uppercase text-gray-400 flex items-center gap-2"><CheckCircle2 size={14} /> Skills</label>
+          <input className="w-full bg-gray-50 border-none rounded-2xl p-4 font-medium" placeholder="Next.js, Banking etc" value={expertness} onChange={(e) => setExpertness(e.target.value)} />
+        </div>
+      </div>
+
+      <div className="p-6 bg-blue-50/50 rounded-[1.5rem] grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+        <div>
+          <label className="text-xs font-bold uppercase text-blue-600">Joined</label>
+          <input type="date" className="w-full bg-white rounded-xl p-3" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs font-bold uppercase text-blue-600">Resigned</label>
+          <input type="date" className="w-full bg-white rounded-xl p-3" disabled={isCurrent} value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        </div>
+        <div className="flex items-center gap-3 mt-4">
+          <input type="checkbox" className="w-6 h-6" checked={isCurrent} onChange={(e) => setIsCurrent(e.target.checked)} />
+          <label className="text-sm font-bold text-blue-800">Presently Working</label>
+        </div>
+      </div>
+
+      <textarea rows={3} className="w-full bg-gray-50 border-none rounded-2xl p-4" placeholder="Job Responsibilities..." value={jobDetails} onChange={(e) => setJobDetails(e.target.value)} />
+
+      <button onClick={handleSave} className="w-full bg-blue-600 text-white py-5 rounded-[1.5rem] font-black text-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-3">
+        <Save size={24} /> SAVE EXPERIENCE
       </button>
-
-      {/* +Add More Option (UI Hint) */}
-      <div className="flex justify-center mt-2">
-        <button 
-          type="button"
-          onClick={() => { /* এখানে ফর্ম রিসেট লজিক দিতে পারেন */ }}
-          className="text-blue-600 text-sm font-semibold hover:underline flex items-center gap-1"
-        >
-          <span>+</span> আরও একটি অভিজ্ঞতা যোগ করুন
-        </button>
-      </div>
-    </form>
+    </div>
   );
 }

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { createNode, deleteNode } from "@/app/actions/nodeActions";
-// নতুন অ্যাকশন ইমপোর্ট করুন (এটি আমরা আগে আলোচনা করেছিলাম)
 import { saveWorkExperienceAction } from "@/app/actions/workActions"; 
+import { saveOrUpdateSkill } from "@/app/actions/skillActions"; 
 
 import { 
     FiMapPin, FiBookOpen, FiBriefcase, FiCpu, 
@@ -14,8 +14,8 @@ import {
 import AddressNode from "@/components/profile-nodes/AddressNode";
 import BioNode from "@/components/profile-nodes/BioNode";
 import EducationNode from "@/components/profile-nodes/EducationNode";
-// ১. আপনার নতুন WorkExpNode ইমপোর্ট করুন
 import WorkExpNode from "@/components/profile-nodes/WorkExpNode"; 
+import SkillSelector from "@/components/profile-nodes/SkillSelector"; 
 
 interface RootNode {
     id: string;
@@ -43,39 +43,53 @@ export default function RootClient({ initialNodes, userId }: { initialNodes: Roo
         { id: "SCHOOL", label: "স্কুল", icon: <FiBookOpen /> },
         { id: "COLLEGE", label: "কলেজ", icon: <FiBookOpen /> },
         { id: "UNIVERSITY", label: "বিশ্ববিদ্যালয়", icon: <FiBookOpen /> },
-        { id: "WORK_EXP", label: "কাজের অভিজ্ঞতা", icon: <FiBriefcase /> }, // ২. ট্যাব নিশ্চিত করা
+        { id: "WORK_EXP", label: "কাজের অভিজ্ঞতা", icon: <FiBriefcase /> }, 
         { id: "SKILL", label: "দক্ষতা", icon: <FiCpu /> },
     ];
 
     const handleSaveToDB = async (metadata: any) => {
         setLoading(true);
         try {
-            // --- ৩. কাজের অভিজ্ঞতা (Work Experience) সেভ করার বিশেষ লজিক ---
             if (activeTab === "WORK_EXP") {
-                // আমরা সরাসরি মাস্টার-ডিটেইল অ্যাকশন কল করব
                 const result = await saveWorkExperienceAction(metadata, userId);
-                
-                if (result.success && result.node) {
-                    // নোড লিস্টে নতুন কোম্পানি এবং পদবী যোগ করা
-                    setNodes(prev => [result.node as RootNode, ...prev]);
+                if (result.success) {
+                    const nodeTitles = [
+                        metadata.company, 
+                        metadata.designation,
+                        metadata.department,
+                        metadata.deskUnit,
+                        metadata.sector,
+                        metadata.skills || metadata.expertness 
+                    ].filter(Boolean);
+
+                    const uniqueTitles = Array.from(new Set(nodeTitles));
+                    for (const title of uniqueTitles) {
+                        const nodeRes = await createNode({
+                            title: title,
+                            type: "WORK_EXP",
+                            metadata: metadata
+                        }, userId);
+                        
+                        if (nodeRes.success && nodeRes.node) {
+                            setNodes(prev => [nodeRes.node as RootNode, ...prev]);
+                        }
+                    }
                 }
-            } 
-            // --- ৪. আগের এড্রেস সেভ করার লজিক ---
+            }
             else if (activeTab === "PR_ADDR" || activeTab === "PM_ADDR") {
                 let locations = [];
                 if (metadata.addressType === "URBAN") {
                     locations = [
-                        { title: metadata.district },
-                        { title: metadata.upazila },
-                        { title: metadata.mohalla },
-                        { title: metadata.area },
+                        { title: metadata.district }, { title: metadata.upazila },
+                        { title: metadata.mohalla }, { title: metadata.area },
+                        { title: metadata.road }, { title: metadata.house },
+                        { title: metadata.section }
                     ];
                 } else {
                     locations = [
-                        { title: metadata.district },
-                        { title: metadata.upazila },
-                        { title: metadata.union },
-                        { title: `Word-${metadata.wordNo}` }
+                        { title: metadata.district }, { title: metadata.upazila },
+                        { title: metadata.union }, { title: `Ward-${metadata.wordNo}` },
+                        { title: metadata.village }
                     ];
                 }
 
@@ -91,13 +105,39 @@ export default function RootClient({ initialNodes, userId }: { initialNodes: Roo
                     }
                 }
             } 
-            // --- ৫. এডুকেশন লজিক ---
+            else if (activeTab === "SKILL") {
+                if (Array.isArray(metadata.skills)) {
+                    const newNodes: RootNode[] = [];
+                    for (const skill of metadata.skills) {
+                        try {
+                            await saveOrUpdateSkill(skill.name);
+                            const result = await createNode({ 
+                                title: skill.name, 
+                                type: "SKILL", 
+                                metadata: { slug: skill.slug } 
+                            }, userId);
+
+                            if (result.success && result.node) {
+                                newNodes.push(result.node as RootNode);
+                            }
+                        } catch (err) {
+                            console.error(`Skill save failed for ${skill.name}:`, err);
+                        }
+                    }
+                    if (newNodes.length > 0) {
+                        setNodes(prev => [...newNodes, ...prev]);
+                    }
+                }
+            }
             else {
                 let nodesToCreate = [];
                 if (["SCHOOL", "COLLEGE", "UNIVERSITY"].includes(activeTab)) {
                     if (metadata.instituteName) nodesToCreate.push({ title: metadata.instituteName });
                     if (metadata.passingYear) nodesToCreate.push({ title: `Batch: ${metadata.passingYear}` });
                     if (metadata.major) nodesToCreate.push({ title: metadata.major });
+                    if (activeTab === "UNIVERSITY" && metadata.hallName) {
+                        nodesToCreate.push({ title: metadata.hallName });
+                    }
                 } else {
                     let titleStr = metadata.name || metadata.company || activeTab;
                     nodesToCreate.push({ title: titleStr });
@@ -145,7 +185,7 @@ export default function RootClient({ initialNodes, userId }: { initialNodes: Roo
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] pb-20 text-slate-900 relative">
-            {/* Delete Modal (আগের মতোই থাকবে) */}
+            {/* Delete Modal */}
             {deleteId && (
                 <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !loading && setDeleteId(null)}></div>
@@ -162,6 +202,7 @@ export default function RootClient({ initialNodes, userId }: { initialNodes: Roo
                 </div>
             )}
 
+            {/* Header */}
             <div className="bg-white border-b py-8 px-6 mb-8 shadow-sm">
                 <div className="max-w-6xl mx-auto">
                     <h1 className="text-3xl font-black text-slate-800">আমার রুট ম্যাপ</h1>
@@ -170,7 +211,7 @@ export default function RootClient({ initialNodes, userId }: { initialNodes: Roo
 
             <div className="max-w-6xl mx-auto px-4">
                 {/* Tabs */}
-                <div className="flex bg-slate-200/50 p-1.5 rounded-2xl mb-8 w-fit gap-1 overflow-x-auto shadow-inner border border-slate-200">
+                <div className="flex bg-slate-200/50 p-1.5 rounded-2xl mb-8 w-fit gap-1 overflow-x-auto shadow-inner border border-slate-200 scrollbar-hide">
                     {tabs.map((tab) => (
                         <button
                             key={tab.id}
@@ -183,9 +224,9 @@ export default function RootClient({ initialNodes, userId }: { initialNodes: Roo
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    {/* বাম পাশ: ফর্ম ইনপুট */}
+                    {/* Form Side */}
                     <div className="lg:col-span-5">
-                        <div className="sticky top-4">
+                        <div className="sticky top-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-xl">
                             {activeTab === "BIO" && <BioNode onSave={handleSaveToDB} />}
                             {(activeTab === "PR_ADDR" || activeTab === "PM_ADDR") && <AddressNode type={activeTab as any} onSave={handleSaveToDB} />}
                             {["SCHOOL", "COLLEGE", "UNIVERSITY"].includes(activeTab) && (
@@ -195,12 +236,12 @@ export default function RootClient({ initialNodes, userId }: { initialNodes: Roo
                                     onSave={handleSaveToDB} 
                                 />
                             )}
-                            {/* ৬. নতুন WorkExpNode যুক্ত করা হলো */}
                             {activeTab === "WORK_EXP" && <WorkExpNode onSave={handleSaveToDB} />}
+                            {activeTab === "SKILL" && <SkillSelector onSave={handleSaveToDB} />}
                         </div>
                     </div>
 
-                    {/* ডান পাশ: সংরক্ষিত তথ্য */}
+                    {/* Saved Data Side */}
                     <div className="lg:col-span-7 space-y-4">
                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 ml-2">
                             <FiCheckCircle className="text-green-500" /> সংরক্ষিত তথ্য
@@ -220,7 +261,6 @@ export default function RootClient({ initialNodes, userId }: { initialNodes: Roo
                             {filteredNodes.length === 0 && <p className="text-slate-400 italic text-sm ml-2">কোনো তথ্য যোগ করা হয়নি</p>}
                         </div>
 
-                        {/* নেটওয়ার্কিং/ফিল্টার এরিয়া */}
                         {filterLocation && (
                             <div className="mt-8 p-6 bg-blue-50/50 rounded-3xl border border-blue-100 animate-in fade-in slide-in-from-bottom-2">
                                 <div className="flex justify-between items-center mb-4">
@@ -229,8 +269,8 @@ export default function RootClient({ initialNodes, userId }: { initialNodes: Roo
                                 </div>
                                 <div className="flex flex-wrap gap-3">
                                     <div className="flex items-center gap-2 bg-white p-2 pr-4 rounded-full shadow-sm border border-white hover:border-blue-200 transition-all">
-                                        <div className="w-8 h-8 bg-blue-600 rounded-full text-white text-[10px] flex items-center justify-center font-bold">MR</div>
-                                        <span className="text-sm font-bold text-slate-700">Matiar Rahman</span>
+                                        <div className="w-8 h-8 bg-blue-600 rounded-full text-white text-[10px] flex items-center justify-center font-bold">UN</div>
+                                        <span className="text-sm font-bold text-slate-700">ব্যবহারকারীর নাম</span>
                                     </div>
                                 </div>
                             </div>
