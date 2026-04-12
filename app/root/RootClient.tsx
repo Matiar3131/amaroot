@@ -168,7 +168,8 @@ export default function RootClient({ initialNodes, userId }: { initialNodes: Roo
         if (!deleteId) return;
         setLoading(true);
         try {
-            const res = await deleteNode(deleteId);
+          
+            const res = await deleteNode(deleteId, userId);
             if (res.success) {
                 setNodes(prev => prev.filter(n => n.id !== deleteId));
             }
