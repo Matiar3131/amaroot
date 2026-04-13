@@ -1,196 +1,304 @@
-"use server";
-
-import { prisma } from "@/app/lib/prisma";
-import { revalidatePath } from "next/cache";
-
-// NodeType enum — schema.prisma থেকে exact values নেওয়া হয়েছে
-const VALID_NODE_TYPES = [
-  "PR_ADDR", "PM_ADDR", "SCHOOL", "COLLEGE", "UNIVERSITY",
-  "WORK_EXP", "SKILL", "BIO", "ORG_DIV", "ORG_DEPT",
-  "ORG_SEC", "ORG_UNIT", "ORG_LINE", "ORG_DESIG",
-  "OFFICE_LOC", "NOMINEE", "OTHER",
-] as const;
-type NodeType = (typeof VALID_NODE_TYPES)[number];
-
-// ১. নোড ক্রিয়েট ফাংশন
-export async function createNode(
-  payload: { title: string; type: string; metadata?: any; isCommon?: boolean },
-  userId: string
-) {
-  try {
-    // NodeType validate করা হচ্ছে schema-র enum দিয়ে
-    if (!VALID_NODE_TYPES.includes(payload.type as NodeType)) {
-      return { success: false, error: "Invalid node type provided." };
-    }
-
-    const existingNode = await prisma.node.findFirst({
-      where: {
-        userId: userId,
-        title: {
-          equals: payload.title,
-          mode: "insensitive",
-        },
-      },
-    });
-
-    if (existingNode) {
-      return { success: false, error: "এই নামে অলরেডি একটি রুট আছে!" };
-    }
-
-    const newNode = await prisma.node.create({
-      data: {
-        title: payload.title,
-        type: payload.type as NodeType,
-        metadata: payload.metadata || {},
-        isPublic: true,
-        isCommon: payload.isCommon || false,
-        userId: userId,
-        updatedAt: new Date(),
-      },
-    });
-
-    revalidatePath("/network");
-    revalidatePath("/root");
-
-    return { success: true, node: JSON.parse(JSON.stringify(newNode)) };
-  } catch (error) {
-    console.error("Create Node Error:", error);
-    return { success: false, error: "সার্ভারে সমস্যা হয়েছে, আবার চেষ্টা করুন।" };
-  }
+generator client {
+  provider = "prisma-client-js"
 }
 
-// সাইডবারের জন্য ইউজারের নোড নিয়ে আসা
-export async function getUserNodes(userId: string) {
-  try {
-    const nodes = await prisma.node.findMany({
-      where: { userId: userId },
-      orderBy: { createdAt: "desc" },
-    });
-    return JSON.parse(JSON.stringify(nodes));
-  } catch (error) {
-    console.error("Fetch Error:", error);
-    return [];
-  }
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-// ২. নেটওয়ার্ক কানেকশন ফাংশন
-export async function getNetworkConnections(
-  currentUserId: string,
-  take: number = 10
-) {
-  try {
-    const connections = await prisma.node.findMany({
-      where: {
-        NOT: { userId: currentUserId },
-        isPublic: true,
-      },
-      include: {
-        User: {
-          select: { name: true, image: true },
-        },
-      },
-      take,
-      orderBy: { createdAt: "desc" },
-    });
-
-    return JSON.parse(JSON.stringify(connections));
-  } catch (error) {
-    console.error("Connection Error:", error);
-    return [];
-  }
+model District {
+  id      String    @id
+  name    String    @unique
+  Upazila Upazila[]
 }
 
-// ৩. ইন্সটিটিউট সাজেশন ফাংশন
-export async function getInstituteSuggestions(query: string) {
-  if (!query) return [];
-  try {
-    const suggestions = await prisma.institution.findMany({
-      where: {
-        name: {
-          contains: query,
-          mode: "insensitive",
-        },
-      },
-      select: {
-        id: true,
-        name: true,
-        location: true,
-      },
-      take: 10,
-    });
-
-    return suggestions.map(
-      (s: { id: string; name: string; location: string | null }) =>
-        s.location ? `${s.name} (${s.location})` : s.name
-    );
-  } catch (error) {
-    console.error("Error fetching suggestions:", error);
-    return [];
-  }
+model Hall {
+  id            String      @id
+  name          String
+  institutionId String
+  Institution   Institution @relation(fields: [institutionId], references: [id])
 }
 
-// ৪. হলের সাজেশন ফাংশন
-export async function getHallsByInstitute(instituteName: string) {
-  try {
-    const cleanName = instituteName.split(" (")[0];
-    const institute = await prisma.institution.findFirst({
-      where: {
-        name: {
-          equals: cleanName,
-          mode: "insensitive",
-        },
-      },
-      include: {
-        Hall: true,
-      },
-    });
-
-    return JSON.parse(JSON.stringify(institute?.Hall || []));
-  } catch (error) {
-    console.error("Hall fetch error:", error);
-    return [];
-  }
+model Institution {
+id            String       @id @default(cuid()) // এটি যোগ করুন
+  name          String       @unique
+  type       InsNodeType
+  short_name String?
+  location   String?
+  district   String?
+  config     Json?
+  createdAt  DateTime    @default(now())
+  updatedAt     DateTime     @updatedAt
+  Hall       Hall[]
+  Node       Node[]
 }
 
-// ৫. সাবজেক্ট সাজেশন ফাংশন
-export async function getSubjectSuggestions() {
-  try {
-    const subjects = await prisma.subject.findMany({
-      orderBy: { name: "asc" },
-    });
-    return JSON.parse(JSON.stringify(subjects));
-  } catch (error) {
-    console.error("Error fetching subjects:", error);
-    return [];
-  }
+model Node {
+  id            String       @id @default(cuid())
+  type          NodeType     @default(SCHOOL)
+  title         String
+  year          String?
+  subject       String?
+  metadata      Json?
+  isPublic      Boolean      @default(true)
+  isCommon      Boolean      @default(false)
+  userId        String
+  institutionId String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt           // @updatedAt যোগ করুন
+  Institution   Institution? @relation(fields: [institutionId], references: [id])
+  User          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts Post[]
+  @@unique([userId, title]) // এই লাইনটি এখানে থাকবে
+  @@index([title])
+  @@index([type])
 }
 
-// ৬. ডিলিট ফাংশন — userId দিয়ে ownership চেক করা হয়েছে
-export async function deleteNode(nodeId: string, userId: string) {
-  try {
-    const node = await prisma.node.findFirst({
-      where: {
-        id: nodeId,
-        userId: userId,
-      },
-    });
+model NodeList {
+ id        String  @id @default(cuid())
+  name      String  @unique
+  label     String
+  category  String  @default("INDIVIDUAL")
+  isDefault Boolean @default(false)
+}
 
-    if (!node) {
-      return {
-        success: false,
-        message: "Node not found or you are not authorized to delete it.",
-      };
-    }
+model Subject {
+  id         String  @id
+  name       String  @unique
+  short_name String?
+}
 
-    await prisma.node.delete({
-      where: { id: nodeId },
-    });
+model Union {
+  id        String  @id
+  name      String
+  upazilaId String
+  Upazila   Upazila @relation(fields: [upazilaId], references: [id])
+}
 
-    revalidatePath("/network");
-    revalidatePath("/root");
-    return { success: true, message: "Node deleted successfully" };
-  } catch (error) {
-    console.error("Delete Error:", error);
-    return { success: false, message: "Failed to delete node" };
-  }
+model Upazila {
+  id         String   @id
+  name       String
+  districtId String
+  Union      Union[]
+  District   District @relation(fields: [districtId], references: [id])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String?
+  phone        String   @unique
+  email        String   @unique
+  password     String
+  nid          String?  @unique
+  address      String?
+  userType     UserRole @default(INDIVIDUAL)
+  image        String?
+  companyName  String?
+  officeEmail  String?  @unique
+  isVerified   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  referredById String?
+  nodes        Node[]
+  User         User?    @relation("UserToUser", fields: [referredById], references: [id])
+  other_User   User[]   @relation("UserToUser")
+  posts  Post[]
+  likes  Like[]
+  shares Share[]
+  comments Comment[]
+}
+
+enum InsNodeType {
+  SCHOOL
+  COLLEGE
+  UNIVERSITY
+  CADET_COLLEGE
+  MEDICAL_COLLEGE
+  MADRASA
+  POLYTECHNIC
+  MARINE_ACADEMY
+  ARMY_INSTITUTE
+}
+
+enum NodeType {
+  // --- শিক্ষা ও একাডেমি (Academic Roots) ---
+  SCHOOL
+  COLLEGE
+  UNIVERSITY
+  DEPARTMENT      // নির্দিষ্ট বিভাগ (যেমন: CSE, EEE)
+  HALL            // আবাসিক হল
+  BATCH           // পাসের বছর বা সেশন
+  ALUMNI          // প্রাক্তন ছাত্র
+  ALUMNI_ASSOC    // প্রাক্তন ছাত্র সমিতি/অ্যাসোসিয়েশন
+  ORGANIZATION
+
+  // --- প্রফেশনাল ও ক্যারিয়ার (Professional Roots) ---
+  WORK_EXP        // কর্মস্থল
+  ORG_DIV         // প্রতিষ্ঠানের বিভাগ (Division)
+  ORG_DEPT        // ডিপার্টমেন্ট
+  ORG_SEC         // সেকশন
+  ORG_UNIT        // ইউনিট
+  ORG_LINE        // লাইন
+  ORG_DESIG       // পদবী
+  OFFICE_LOC      // অফিসের লোকেশন বা ব্রাঞ্চ
+  PROJECT         // বিশেষ কোনো প্রজেক্ট বা অ্যাসাইনমেন্ট
+
+  // --- অবস্থান ও আদিম শিকড় (Geographical Roots) ---
+  VILLAGE         // গ্রামের বাড়ি (The Ultimate Root)
+  AREA            // বর্তমান এলাকা/মহল্লা
+  DISTRICT        // জেলা
+  PR_ADDR         // বর্তমান ঠিকানা
+  PM_ADDR         // স্থায়ী ঠিকানা
+  LIVING
+  WORKPLACE
+  EDUCATION
+  POLITICAL_PARTY
+
+  // --- পরিবার ও ঐতিহ্য (Heritage & Lineage) ---
+  DYNASTY         // বংশ (যেমন: শিকদার বাড়ি, মজুমদার পরিবার)
+  DYNASTY_LINEAGE // বংশপরম্পরা বা বংশলতিকা
+  FAMILY_TREE     // পারিবারিক গাছ
+  PARENTAL_ROOT   // মাতামহ/পিতামহ এর দিকের আলাদা রুট
+  CASTE_RELIGION  // জাতি বা ধর্মীয় পরিচয়
+
+  // --- সামাজিক ও সংগঠন (Social & Community) ---
+  CLUB            // ডিবেটিং, স্পোর্টস বা কালচারাল ক্লাব
+  COMMUNITY       // অনলাইন বা অফলাইন ফোরাম/গ্রুপ
+  VOLUNTEER       // সামাজিক কাজ বা চ্যারিটি
+  INTEREST        // শখ বা প্যাশন
+  AWARD           // সম্মাননা বা পুরস্কার
+  RELIGIOUS_ORG   // ধর্মীয় প্রতিষ্ঠান বা সংগঠন
+  SPIRITUAL_LINK  // আধ্যাত্মিক বা তরীকার সংযোগ
+  POLITICAL_VIEW  // রাজনৈতিক আদর্শ বা পরিচয়
+
+  // --- পার্সোনাল ও ডিজিটাল (Personal & Digital) ---
+  BLOOD_GROUP     // ব্লাড গ্রুপ (জরুরি প্রয়োজনে)
+  PHILOSOPHY      // জীবনের দর্শন বা মূলমন্ত্র
+  SKILL           // বিশেষ দক্ষতা
+  BIO             // ছোট জীবনবৃত্তান্ত
+  NOMINEE         // উত্তরাধিকারী (অমরউইলের জন্য গুরুত্বপূর্ণ)
+  SOCIAL_LINK     // অন্যান্য সোশ্যাল মিডিয়া প্রোফাইল
+  OTHER           // এর বাইরে অন্য কিছু
+}
+
+enum UserRole {
+  INDIVIDUAL
+  COMPANY
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String   @unique 
+  industry    String   
+  category    String?  
+  logoUrl     String?  
+  location    String?  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@index([industry])
+}
+
+model OrganizationStructure {
+  id          String   @id @default(cuid())
+  sector      String   // e.g., "Banking"
+  orgName     String   // e.g., "Dutch-Bangla Bank PLC"
+  department  String   // e.g., "IT Division"
+  branch      String?  // e.g., "Head Office"
+  desk        String?  // e.g., "FEX"
+  
+  @@index([sector])
+  @@index([orgName])
+}
+
+model WorkExperience {
+  id           String    @id @default(cuid())
+  userId       String    
+  companyName  String    // orgId এর বদলে এখন এটিই মূল কোম্পানি আইডেন্টিফায়ার
+  
+  // নতুন ফিল্ডসমূহ যা UI-তে আছে
+  sector       String?   // Sector/Industry এর জন্য
+  department   String?   // Department/Branch এর জন্য
+  
+  designation  String    
+  desk         String?   // UI-তে থাকা Desk/Unit এর জন্য
+  fromDate     DateTime
+  toDate       DateTime? 
+  isCurrent    Boolean   @default(false)
+  expertise    String?   // UI-তে থাকা Expertness/Core Skills এর জন্য
+  jobDetails   String?   @db.Text // UI-তে থাকা Key Responsibilities এর জন্য
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // রিলেশনটি মুছে দিতে হবে যদি আপনি Organization টেবিলের সাথে কানেক্ট না করতে চান।
+  // অথবা যদি কানেক্ট করতে চান, তবে companyName কলামটি দিয়ে রিলেশন করতে হবে (যা সাধারণত ID দিয়ে করা হয়)।
+  // সহজ করার জন্য আপাতত নিচের রিলেশন এবং ইনডেক্স লাইনগুলো এভাবে আপডেট করুন:
+
+  @@index([userId])
+  @@index([companyName]) // orgId এর বদলে companyName ইনডেক্স করুন দ্রুত সার্চের জন্য
+  @@index([designation])
+}
+
+model SectorOrgWiseDesignation {
+  id               String   @id @default(cuid())
+  sector           String   // e.g., "Banking", "IT"
+  orgName          String   // e.g., "Jamuna Bank PLC" or "Global" (যদি সবার জন্য কমন হয়)
+  designation      String   // e.g., "Senior Officer", "Software Engineer"
+  
+  @@index([sector])
+  @@index([orgName])
+}
+
+model SkillMaster {
+  id        String   @id @default(cuid())
+  name      String   @unique // ডিসপ্লে নাম: "React Native"
+  slug      String   @unique // ইউনিক নাম: "react-native" (সার্চের জন্য সুবিধা)
+  category  String?  // IT, Creative, Marketing ইত্যাদি (ঐচ্ছিক)
+  count     Int      @default(1) // কতজন ইউজার এই স্কিল ব্যবহার করছে
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug]) // সার্চ স্পিড বাড়ানোর জন্য ইনডেক্স
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  nodeId    String?  // কোন নোড থেকে পোস্ট করা হয়েছে (যেমন: CUET)
+  node      Node?    @relation(fields: [nodeId], references: [id])
+  likes     Like[]
+  shares    Share[]
+  comments Comment[]
+  createdAt DateTime @default(now())
+}
+
+
+model Like {
+  id     String @id @default(cuid())
+  userId String
+  postId String
+  user   User   @relation(fields: [userId], references: [id])
+  post   Post   @relation(fields: [postId], references: [id])
+  @@unique([userId, postId]) // একজন একবারই লাইক দিতে পারবে
+}
+
+model Share {
+  id     String @id @default(cuid())
+  userId String
+  postId String
+  user   User   @relation(fields: [userId], references: [id])
+  post   Post   @relation(fields: [postId], references: [id])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  userId    String
+  postId    String
+  user      User     @relation(fields: [userId], references: [id])
+  post      Post     @relation(fields: [postId], references: [id])
+  createdAt DateTime @default(now())
 }

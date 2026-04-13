@@ -3,26 +3,97 @@
 import { prisma } from "@/app/lib/prisma";
 import { revalidatePath } from "next/cache";
 
-// NodeType enum — schema.prisma থেকে exact values নেওয়া হয়েছে
-const VALID_NODE_TYPES = [
-  "PR_ADDR", "PM_ADDR", "SCHOOL", "COLLEGE", "UNIVERSITY",
-  "WORK_EXP", "SKILL", "BIO", "ORG_DIV", "ORG_DEPT",
-  "ORG_SEC", "ORG_UNIT", "ORG_LINE", "ORG_DESIG",
-  "OFFICE_LOC", "NOMINEE", "OTHER",
-] as const;
-type NodeType = (typeof VALID_NODE_TYPES)[number];
+// ========================================
+// NodeType (Prisma schema থেকে manually define)
+// ========================================
+type NodeType =
+  // --- শিক্ষা ও একাডেমি ---
+  | "SCHOOL"
+  | "COLLEGE"
+  | "UNIVERSITY"
+  | "DEPARTMENT"
+  | "HALL"
+  | "BATCH"
+  | "ALUMNI"
+  | "ALUMNI_ASSOC"
+  // --- প্রফেশনাল ও ক্যারিয়ার ---
+  | "WORK_EXP"
+  | "ORG_DIV"
+  | "ORG_DEPT"
+  | "ORG_SEC"
+  | "ORG_UNIT"
+  | "ORG_LINE"
+  | "ORG_DESIG"
+  | "OFFICE_LOC"
+  | "PROJECT"
+  // --- অবস্থান ও আদিম শিকড় ---
+  | "VILLAGE"
+  | "AREA"
+  | "DISTRICT"
+  | "PR_ADDR"
+  | "PM_ADDR"
+  // --- পরিবার ও ঐতিহ্য ---
+  | "DYNASTY"
+  | "DYNASTY_LINEAGE"
+  | "FAMILY_TREE"
+  | "PARENTAL_ROOT"
+  | "CASTE_RELIGION"
+  // --- সামাজিক ও সংগঠন ---
+  | "CLUB"
+  | "COMMUNITY"
+  | "VOLUNTEER"
+  | "INTEREST"
+  | "AWARD"
+  | "RELIGIOUS_ORG"
+  | "SPIRITUAL_LINK"
+  | "POLITICAL_VIEW"
+  // --- পার্সোনাল ও ডিজিটাল ---
+  | "BLOOD_GROUP"
+  | "PHILOSOPHY"
+  | "SKILL"
+  | "BIO"
+  | "NOMINEE"
+  | "SOCIAL_LINK"
+  |  "LIVING"
+   | "ORGANIZATION"
+   | "EDUCATION"
+   | "WORKPLACE"
+   | "POLITICAL_PARTY"
+  | "OTHER";
 
-// ১. নোড ক্রিয়েট ফাংশন
+const VALID_NODE_TYPES: string[] = [
+  "SCHOOL", "COLLEGE", "UNIVERSITY", "DEPARTMENT",
+  "HALL", "BATCH", "ALUMNI", "ALUMNI_ASSOC",
+  "WORK_EXP", "ORG_DIV", "ORG_DEPT", "ORG_SEC",
+  "ORG_UNIT", "ORG_LINE", "ORG_DESIG", "OFFICE_LOC", "PROJECT",
+  "VILLAGE", "AREA", "DISTRICT", "PR_ADDR", "PM_ADDR",
+  "DYNASTY", "DYNASTY_LINEAGE", "FAMILY_TREE",
+  "PARENTAL_ROOT", "CASTE_RELIGION",
+  "CLUB", "COMMUNITY", "VOLUNTEER", "INTEREST",
+  "AWARD", "RELIGIOUS_ORG", "SPIRITUAL_LINK", "POLITICAL_VIEW",
+  "BLOOD_GROUP", "PHILOSOPHY", "SKILL", "BIO",
+  "NOMINEE", "SOCIAL_LINK","LIVING","ORGANIZATION","EDUCATION","WORKPLACE","POLITICAL_PARTY", "OTHER",
+];
+
+/**
+ * ১. নতুন নোড/রুট তৈরি করার ফাংশন
+ */
 export async function createNode(
   payload: { title: string; type: string; metadata?: any; isCommon?: boolean },
   userId: string
 ) {
   try {
-    // NodeType validate করা হচ্ছে schema-র enum দিয়ে
-    if (!VALID_NODE_TYPES.includes(payload.type as NodeType)) {
-      return { success: false, error: "Invalid node type provided." };
+    if (!userId) {
+      return { success: false, error: "ইউজার আইডি পাওয়া যায়নি।" };
     }
 
+    // ✅ "OTHER" সরাসরি string — NodeType.OTHER নয়
+    let finalType: NodeType = "OTHER";
+    if (VALID_NODE_TYPES.includes(payload.type)) {
+      finalType = payload.type as NodeType;
+    }
+
+    // ডুপ্লিকেট চেক
     const existingNode = await prisma.node.findFirst({
       where: {
         userId: userId,
@@ -34,13 +105,14 @@ export async function createNode(
     });
 
     if (existingNode) {
-      return { success: false, error: "এই নামে অলরেডি একটি রুট আছে!" };
+      return { success: false, error: "এই রুটটি অলরেডি আপনার লিস্টে আছে!" };
     }
 
+    // ডাটাবেজে নতুন নোড সেভ
     const newNode = await prisma.node.create({
       data: {
         title: payload.title,
-        type: payload.type as NodeType,
+        type: finalType,
         metadata: payload.metadata || {},
         isPublic: true,
         isCommon: payload.isCommon || false,
@@ -59,50 +131,28 @@ export async function createNode(
   }
 }
 
-// সাইডবারের জন্য ইউজারের নোড নিয়ে আসা
+/**
+ * ২. সাইডবারের জন্য ইউজারের সব নোড নিয়ে আসা
+ */
 export async function getUserNodes(userId: string) {
   try {
+    if (!userId) return [];
     const nodes = await prisma.node.findMany({
       where: { userId: userId },
       orderBy: { createdAt: "desc" },
     });
     return JSON.parse(JSON.stringify(nodes));
   } catch (error) {
-    console.error("Fetch Error:", error);
+    console.error("Fetch User Nodes Error:", error);
     return [];
   }
 }
 
-// ২. নেটওয়ার্ক কানেকশন ফাংশন
-export async function getNetworkConnections(
-  currentUserId: string,
-  take: number = 10
-) {
-  try {
-    const connections = await prisma.node.findMany({
-      where: {
-        NOT: { userId: currentUserId },
-        isPublic: true,
-      },
-      include: {
-        User: {
-          select: { name: true, image: true },
-        },
-      },
-      take,
-      orderBy: { createdAt: "desc" },
-    });
-
-    return JSON.parse(JSON.stringify(connections));
-  } catch (error) {
-    console.error("Connection Error:", error);
-    return [];
-  }
-}
-
-// ৩. ইন্সটিটিউট সাজেশন ফাংশন
+/**
+ * ৩. ইন্সটিটিউট সাজেশনের জন্য
+ */
 export async function getInstituteSuggestions(query: string) {
-  if (!query) return [];
+  if (!query || query.length < 2) return [];
   try {
     const suggestions = await prisma.institution.findMany({
       where: {
@@ -129,7 +179,38 @@ export async function getInstituteSuggestions(query: string) {
   }
 }
 
-// ৪. হলের সাজেশন ফাংশন
+/**
+ * ৪. নেটওয়ার্ক কানেকশন দেখানো
+ */
+export async function getNetworkConnections(
+  currentUserId: string,
+  take: number = 10
+) {
+  try {
+    const connections = await prisma.node.findMany({
+      where: {
+        NOT: { userId: currentUserId },
+        isPublic: true,
+      },
+      include: {
+        User: {
+          select: { name: true, image: true },
+        },
+      },
+      take,
+      orderBy: { createdAt: "desc" },
+    });
+
+    return JSON.parse(JSON.stringify(connections));
+  } catch (error) {
+    console.error("Connection Error:", error);
+    return [];
+  }
+}
+
+/**
+ * ৫. ইন্সটিটিউট অনুযায়ী হলের লিস্ট
+ */
 export async function getHallsByInstitute(instituteName: string) {
   try {
     const cleanName = instituteName.split(" (")[0];
@@ -152,7 +233,9 @@ export async function getHallsByInstitute(instituteName: string) {
   }
 }
 
-// ৫. সাবজেক্ট সাজেশন ফাংশন
+/**
+ * ৬. সাবজেক্ট সাজেশনের জন্য
+ */
 export async function getSubjectSuggestions() {
   try {
     const subjects = await prisma.subject.findMany({
@@ -165,7 +248,27 @@ export async function getSubjectSuggestions() {
   }
 }
 
-// ৬. ডিলিট ফাংশন — userId দিয়ে ownership চেক করা হয়েছে
+export async function getFeedPosts() {
+  try {
+    const posts = await prisma.post.findMany({
+      include: {
+        user: { select: { name: true, image: true } },
+        node: { select: { title: true } },
+        likes: true,
+        comments: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return JSON.parse(JSON.stringify(posts));
+  } catch (error) {
+    console.error("Feed Fetch Error:", error);
+    return [];
+  }
+}
+
+/**
+ * ৭. নোড ডিলিট করার ফাংশন
+ */
 export async function deleteNode(nodeId: string, userId: string) {
   try {
     const node = await prisma.node.findFirst({
@@ -178,7 +281,7 @@ export async function deleteNode(nodeId: string, userId: string) {
     if (!node) {
       return {
         success: false,
-        message: "Node not found or you are not authorized to delete it.",
+        message: "রুটটি পাওয়া যায়নি অথবা আপনি এটি ডিলিট করার অধিকারী নন।",
       };
     }
 
@@ -188,9 +291,9 @@ export async function deleteNode(nodeId: string, userId: string) {
 
     revalidatePath("/network");
     revalidatePath("/root");
-    return { success: true, message: "Node deleted successfully" };
+    return { success: true, message: "রুটটি সফলভাবে ডিলিট করা হয়েছে।" };
   } catch (error) {
     console.error("Delete Error:", error);
-    return { success: false, message: "Failed to delete node" };
+    return { success: false, message: "ডিলিট করতে ব্যর্থ হয়েছে।" };
   }
 }

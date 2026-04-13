@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { User, MapPin, GraduationCap, Link2, Briefcase, ChevronDown, ChevronUp } from "lucide-react";
+import { User, MapPin, GraduationCap, Link2, ChevronDown, ChevronUp } from "lucide-react";
+import AddNodeModal from "./AddNodeModal"; // পাথটি আপনার ফোল্ডার অনুযায়ী চেক করে নিন
 
 interface NodeItem {
   id: string;
@@ -9,19 +10,27 @@ interface NodeItem {
   type?: string;
 }
 
-export default function SidebarLeft({ userNodes = [] }: { userNodes?: NodeItem[] }) {
+export default function SidebarLeft({ 
+  userNodes = [], 
+  userId = "" // userId প্রপস হিসেবে নিতে হবে মডালের জন্য
+}: { 
+  userNodes?: NodeItem[];
+  userId?: string;
+}) {
   const [showAll, setShowAll] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
   const initialNodes = 5;
   const nodesToProcess = Array.isArray(userNodes) ? userNodes : [];
   const displayedNodes = showAll ? nodesToProcess : nodesToProcess.slice(0, initialNodes);
 
-  // অটো-ক্ল্যাপস লজিক: ১০ সেকেন্ড পর অটো ৫টি হয়ে যাবে
+  // অটো-ক্ল্যাপস লজিক: ১৫ সেকেন্ড পর অটো ৫টি হয়ে যাবে
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (showAll) {
       timer = setTimeout(() => {
         setShowAll(false);
-      }, 15000); // ১৫ সেকেন্ড পর অটো বন্ধ হবে
+      }, 15000);
     }
     return () => clearTimeout(timer);
   }, [showAll]);
@@ -41,16 +50,16 @@ export default function SidebarLeft({ userNodes = [] }: { userNodes?: NodeItem[]
           </div>
           <h3 className="text-xl font-black text-slate-800 tracking-tight">মাতিয়ার রহমান</h3>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">
-            IT Professional & Full Stack Developer
+            Software Developer | IT Specialist (Banking)
           </p>
           <div className="space-y-3 pt-2">
             <div className="flex items-center gap-3 text-slate-600">
               <MapPin size={16} className="text-blue-500" />
-              <span className="text-sm font-medium">Lalmonirhat, BD</span>
+              <span className="text-sm font-medium">Dhaka, Bangladesh</span>
             </div>
             <div className="flex items-center gap-3 text-slate-600">
               <GraduationCap size={16} className="text-blue-500" />
-              <span className="text-sm font-medium">CUET</span>
+              <span className="text-sm font-medium">CUET CSE</span>
             </div>
           </div>
         </div>
@@ -71,7 +80,9 @@ export default function SidebarLeft({ userNodes = [] }: { userNodes?: NodeItem[]
           {displayedNodes.map((node) => (
             <div key={node.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl hover:bg-blue-50 transition-all cursor-pointer group border border-transparent hover:border-blue-100">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-white rounded-xl text-blue-600 shadow-sm"><Link2 size={14} /></div>
+                <div className="p-2 bg-white rounded-xl text-blue-600 shadow-sm">
+                  <Link2 size={14} />
+                </div>
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-slate-700">{node.title}</span>
                   <span className="text-[8px] font-bold text-slate-400 uppercase">{node.type || "General"}</span>
@@ -96,10 +107,22 @@ export default function SidebarLeft({ userNodes = [] }: { userNodes?: NodeItem[]
           )}
         </div>
 
-        <button className="w-full mt-4 py-3 border border-dashed border-slate-200 rounded-2xl text-[10px] font-black text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all uppercase">
+        {/* নতুন রুট যোগ করার বাটন */}
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="w-full mt-4 py-3 border border-dashed border-slate-200 rounded-2xl text-[10px] font-black text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all uppercase"
+        >
           + নতুন রুট যোগ করুন
         </button>
       </div>
+
+      {/* ৩. মডাল কম্পোনেন্ট ইমপ্লিমেন্টেশন */}
+      <AddNodeModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        userId={userId}
+        existingNodes={nodesToProcess} // অলরেডি থাকা রুটগুলো পাস করছি ফিল্টারিং এর জন্য
+      />
     </div>
   );
 }

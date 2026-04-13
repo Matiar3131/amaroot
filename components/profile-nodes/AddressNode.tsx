@@ -9,6 +9,13 @@ export default function AddressNode({ type, onSave }: { type: string, onSave: (d
   const [upazilas, setUpazilas] = useState<any[]>([]);
   const [unions, setUnions] = useState<any[]>([]);
 
+interface AddNodeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  userId: string;
+  existingNodes?: any[]; // এই লাইনটি যোগ করুন যাতে Sidebar থেকে পাঠানো ডাটা রিসিভ করতে পারে
+}
+
   const [formData, setFormData] = useState({
     district: "",
     upazila: "",

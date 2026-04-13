@@ -4,29 +4,41 @@ import { prisma } from "@/app/lib/prisma";
 import { revalidatePath } from "next/cache";
 
 /**
- * ১. সব পোস্ট নিয়ে আসা (ফিডের জন্য)
- * এখানে user, node এবং likes এর তথ্যসহ কমেন্ট কাউন্ট অন্তর্ভুক্ত করা হয়েছে।
+ * ১. সব পোস্ট নিয়ে আসা (ফিড ও নেটওয়ার্কের জন্য)
  */
 export async function getPosts() {
   try {
     const posts = await prisma.post.findMany({
       include: {
-        user: true, // ইউজারের নাম ও ছবি দেখানোর জন্য
-        node: true, // কোন নোড থেকে পোস্ট করা হয়েছে তা দেখানোর জন্য (জরুরি)
-        likes: true, // লাইক চেক করার জন্য
+        user: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+          },
+        },
+        node: {
+          select: {
+            id: true,
+            title: true,
+            type: true,
+          },
+        },
+        likes: true,
         _count: {
-          select: { 
-            likes: true, 
-            shares: true, 
-            comments: true // কমেন্ট সংখ্যা দেখানোর জন্য
-          }
-        }
+          select: {
+            likes: true,
+            shares: true,
+            comments: true,
+          },
+        },
       },
-      orderBy: { 
-        createdAt: 'desc' // লেটেস্ট পোস্ট আগে দেখাবে
+      orderBy: {
+        createdAt: "desc",
       },
     });
-    return posts;
+
+    return JSON.parse(JSON.stringify(posts));
   } catch (error) {
     console.error("Error fetching posts:", error);
     return [];
@@ -36,25 +48,69 @@ export async function getPosts() {
 /**
  * ২. নতুন পোস্ট তৈরি করা
  */
-export async function createPost(content: string, userId: string, nodeId?: string) {
+export async function createPost(
+  content: string,
+  userId: string,
+  nodeId?: string
+) {
   if (!content || content.trim().length < 2) {
-    throw new Error("পোস্টের বিষয়বস্তু খুব ছোট!");
+    return { success: false, error: "পোস্টের বিষয়বস্তু খুব ছোট!" };
+  }
+
+  if (!userId) {
+    return { success: false, error: "ইউজার আইডি পাওয়া যায়নি।" };
   }
 
   try {
     const post = await prisma.post.create({
       data: {
-        content,
-        userId,
-        nodeId: nodeId || null, // যদি নোড আইডি না থাকে তবে নাল হিসেবে সেভ হবে
+        content: content.trim(),
+        userId: userId,
+        nodeId: nodeId || null,
       },
     });
 
-    // পেজ রিফ্রেশ না করেই নতুন পোস্ট ডাটা রিvalidate করবে
-    revalidatePath("/network"); 
-    return post;
+    revalidatePath("/feed");
+    revalidatePath("/network");
+
+    return { success: true, post: JSON.parse(JSON.stringify(post)) };
   } catch (error) {
     console.error("Post create failed:", error);
-    throw new Error("পোস্ট তৈরি করতে ব্যর্থ হয়েছে।");
+    return { success: false, error: "পোস্ট তৈরি করতে ব্যর্থ হয়েছে।" };
+  }
+}
+
+/**
+ * ৩. লাইক টগল ফাংশন
+ */
+export async function toggleLike(postId: string, userId: string) {
+  if (!postId || !userId) {
+    return { success: false, error: "প্যারামিটার মিসিং।" };
+  }
+
+  try {
+    const existingLike = await prisma.like.findUnique({
+      where: {
+        userId_postId: { userId, postId },
+      },
+    });
+
+    if (existingLike) {
+      await prisma.like.delete({
+        where: { id: existingLike.id },
+      });
+    } else {
+      await prisma.like.create({
+        data: { userId, postId },
+      });
+    }
+
+    revalidatePath("/feed");
+    revalidatePath("/network");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Like toggle failed:", error);
+    return { success: false, error: "লাইক দিতে ব্যর্থ হয়েছে।" };
   }
 }
