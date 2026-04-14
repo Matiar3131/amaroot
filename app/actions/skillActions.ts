@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@/app/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 export async function getSkillSuggestions(query: string) {
   if (!query || query.length < 2) return [];

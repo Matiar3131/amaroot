@@ -21,15 +21,15 @@ model Hall {
 }
 
 model Institution {
-id            String       @id @default(cuid()) // এটি যোগ করুন
-  name          String       @unique
+  id         String      @id @default(cuid()) // এটি যোগ করুন
+  name       String      @unique
   type       InsNodeType
   short_name String?
   location   String?
   district   String?
   config     Json?
   createdAt  DateTime    @default(now())
-  updatedAt     DateTime     @updatedAt
+  updatedAt  DateTime    @updatedAt
   Hall       Hall[]
   Node       Node[]
 }
@@ -46,17 +46,19 @@ model Node {
   userId        String
   institutionId String?
   createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt           // @updatedAt যোগ করুন
+  updatedAt     DateTime     @updatedAt // @updatedAt যোগ করুন
   Institution   Institution? @relation(fields: [institutionId], references: [id])
   User          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  posts Post[]
+  posts         Post[]
+  messages      Message[]
+
   @@unique([userId, title]) // এই লাইনটি এখানে থাকবে
   @@index([title])
   @@index([type])
 }
 
 model NodeList {
- id        String  @id @default(cuid())
+  id        String  @id @default(cuid())
   name      String  @unique
   label     String
   category  String  @default("INDIVIDUAL")
@@ -85,28 +87,30 @@ model Upazila {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String?
-  phone        String   @unique
-  email        String   @unique
-  password     String
-  nid          String?  @unique
-  address      String?
-  userType     UserRole @default(INDIVIDUAL)
-  image        String?
-  companyName  String?
-  officeEmail  String?  @unique
-  isVerified   Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  referredById String?
-  nodes        Node[]
-  User         User?    @relation("UserToUser", fields: [referredById], references: [id])
-  other_User   User[]   @relation("UserToUser")
-  posts  Post[]
-  likes  Like[]
-  shares Share[]
-  comments Comment[]
+  id               String    @id @default(cuid())
+  name             String?
+  phone            String    @unique
+  email            String    @unique
+  password         String
+  nid              String?   @unique
+  address          String?
+  userType         UserRole  @default(INDIVIDUAL)
+  image            String?
+  companyName      String?
+  officeEmail      String?   @unique
+  isVerified       Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  referredById     String?
+  nodes            Node[]
+  User             User?     @relation("UserToUser", fields: [referredById], references: [id])
+  other_User       User[]    @relation("UserToUser")
+  posts            Post[]
+  likes            Like[]
+  shares           Share[]
+  comments         Comment[]
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
 }
 
 enum InsNodeType {
@@ -126,60 +130,60 @@ enum NodeType {
   SCHOOL
   COLLEGE
   UNIVERSITY
-  DEPARTMENT      // নির্দিষ্ট বিভাগ (যেমন: CSE, EEE)
-  HALL            // আবাসিক হল
-  BATCH           // পাসের বছর বা সেশন
-  ALUMNI          // প্রাক্তন ছাত্র
-  ALUMNI_ASSOC    // প্রাক্তন ছাত্র সমিতি/অ্যাসোসিয়েশন
+  DEPARTMENT // নির্দিষ্ট বিভাগ (যেমন: CSE, EEE)
+  HALL // আবাসিক হল
+  BATCH // পাসের বছর বা সেশন
+  ALUMNI // প্রাক্তন ছাত্র
+  ALUMNI_ASSOC // প্রাক্তন ছাত্র সমিতি/অ্যাসোসিয়েশন
   ORGANIZATION
 
   // --- প্রফেশনাল ও ক্যারিয়ার (Professional Roots) ---
-  WORK_EXP        // কর্মস্থল
-  ORG_DIV         // প্রতিষ্ঠানের বিভাগ (Division)
-  ORG_DEPT        // ডিপার্টমেন্ট
-  ORG_SEC         // সেকশন
-  ORG_UNIT        // ইউনিট
-  ORG_LINE        // লাইন
-  ORG_DESIG       // পদবী
-  OFFICE_LOC      // অফিসের লোকেশন বা ব্রাঞ্চ
-  PROJECT         // বিশেষ কোনো প্রজেক্ট বা অ্যাসাইনমেন্ট
+  WORK_EXP // কর্মস্থল
+  ORG_DIV // প্রতিষ্ঠানের বিভাগ (Division)
+  ORG_DEPT // ডিপার্টমেন্ট
+  ORG_SEC // সেকশন
+  ORG_UNIT // ইউনিট
+  ORG_LINE // লাইন
+  ORG_DESIG // পদবী
+  OFFICE_LOC // অফিসের লোকেশন বা ব্রাঞ্চ
+  PROJECT // বিশেষ কোনো প্রজেক্ট বা অ্যাসাইনমেন্ট
 
   // --- অবস্থান ও আদিম শিকড় (Geographical Roots) ---
-  VILLAGE         // গ্রামের বাড়ি (The Ultimate Root)
-  AREA            // বর্তমান এলাকা/মহল্লা
-  DISTRICT        // জেলা
-  PR_ADDR         // বর্তমান ঠিকানা
-  PM_ADDR         // স্থায়ী ঠিকানা
+  VILLAGE // গ্রামের বাড়ি (The Ultimate Root)
+  AREA // বর্তমান এলাকা/মহল্লা
+  DISTRICT // জেলা
+  PR_ADDR // বর্তমান ঠিকানা
+  PM_ADDR // স্থায়ী ঠিকানা
   LIVING
   WORKPLACE
   EDUCATION
   POLITICAL_PARTY
 
   // --- পরিবার ও ঐতিহ্য (Heritage & Lineage) ---
-  DYNASTY         // বংশ (যেমন: শিকদার বাড়ি, মজুমদার পরিবার)
+  DYNASTY // বংশ (যেমন: শিকদার বাড়ি, মজুমদার পরিবার)
   DYNASTY_LINEAGE // বংশপরম্পরা বা বংশলতিকা
-  FAMILY_TREE     // পারিবারিক গাছ
-  PARENTAL_ROOT   // মাতামহ/পিতামহ এর দিকের আলাদা রুট
-  CASTE_RELIGION  // জাতি বা ধর্মীয় পরিচয়
+  FAMILY_TREE // পারিবারিক গাছ
+  PARENTAL_ROOT // মাতামহ/পিতামহ এর দিকের আলাদা রুট
+  CASTE_RELIGION // জাতি বা ধর্মীয় পরিচয়
 
   // --- সামাজিক ও সংগঠন (Social & Community) ---
-  CLUB            // ডিবেটিং, স্পোর্টস বা কালচারাল ক্লাব
-  COMMUNITY       // অনলাইন বা অফলাইন ফোরাম/গ্রুপ
-  VOLUNTEER       // সামাজিক কাজ বা চ্যারিটি
-  INTEREST        // শখ বা প্যাশন
-  AWARD           // সম্মাননা বা পুরস্কার
-  RELIGIOUS_ORG   // ধর্মীয় প্রতিষ্ঠান বা সংগঠন
-  SPIRITUAL_LINK  // আধ্যাত্মিক বা তরীকার সংযোগ
-  POLITICAL_VIEW  // রাজনৈতিক আদর্শ বা পরিচয়
+  CLUB // ডিবেটিং, স্পোর্টস বা কালচারাল ক্লাব
+  COMMUNITY // অনলাইন বা অফলাইন ফোরাম/গ্রুপ
+  VOLUNTEER // সামাজিক কাজ বা চ্যারিটি
+  INTEREST // শখ বা প্যাশন
+  AWARD // সম্মাননা বা পুরস্কার
+  RELIGIOUS_ORG // ধর্মীয় প্রতিষ্ঠান বা সংগঠন
+  SPIRITUAL_LINK // আধ্যাত্মিক বা তরীকার সংযোগ
+  POLITICAL_VIEW // রাজনৈতিক আদর্শ বা পরিচয়
 
   // --- পার্সোনাল ও ডিজিটাল (Personal & Digital) ---
-  BLOOD_GROUP     // ব্লাড গ্রুপ (জরুরি প্রয়োজনে)
-  PHILOSOPHY      // জীবনের দর্শন বা মূলমন্ত্র
-  SKILL           // বিশেষ দক্ষতা
-  BIO             // ছোট জীবনবৃত্তান্ত
-  NOMINEE         // উত্তরাধিকারী (অমরউইলের জন্য গুরুত্বপূর্ণ)
-  SOCIAL_LINK     // অন্যান্য সোশ্যাল মিডিয়া প্রোফাইল
-  OTHER           // এর বাইরে অন্য কিছু
+  BLOOD_GROUP // ব্লাড গ্রুপ (জরুরি প্রয়োজনে)
+  PHILOSOPHY // জীবনের দর্শন বা মূলমন্ত্র
+  SKILL // বিশেষ দক্ষতা
+  BIO // ছোট জীবনবৃত্তান্ত
+  NOMINEE // উত্তরাধিকারী (অমরউইলের জন্য গুরুত্বপূর্ণ)
+  SOCIAL_LINK // অন্যান্য সোশ্যাল মিডিয়া প্রোফাইল
+  OTHER // এর বাইরে অন্য কিছু
 }
 
 enum UserRole {
@@ -188,48 +192,49 @@ enum UserRole {
 }
 
 model Organization {
-  id          String   @id @default(cuid())
-  name        String   @unique 
-  industry    String   
-  category    String?  
-  logoUrl     String?  
-  location    String?  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String   @unique
+  industry  String
+  category  String?
+  logoUrl   String?
+  location  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([industry])
 }
 
 model OrganizationStructure {
-  id          String   @id @default(cuid())
-  sector      String   // e.g., "Banking"
-  orgName     String   // e.g., "Dutch-Bangla Bank PLC"
-  department  String   // e.g., "IT Division"
-  branch      String?  // e.g., "Head Office"
-  desk        String?  // e.g., "FEX"
-  
+  id         String  @id @default(cuid())
+  sector     String // e.g., "Banking"
+  orgName    String // e.g., "Dutch-Bangla Bank PLC"
+  department String // e.g., "IT Division"
+  branch     String? // e.g., "Head Office"
+  desk       String? // e.g., "FEX"
+
   @@index([sector])
   @@index([orgName])
 }
 
 model WorkExperience {
-  id           String    @id @default(cuid())
-  userId       String    
-  companyName  String    // orgId এর বদলে এখন এটিই মূল কোম্পানি আইডেন্টিফায়ার
-  
+  id          String @id @default(cuid())
+  userId      String
+  companyName String // orgId এর বদলে এখন এটিই মূল কোম্পানি আইডেন্টিফায়ার
+
   // নতুন ফিল্ডসমূহ যা UI-তে আছে
-  sector       String?   // Sector/Industry এর জন্য
-  department   String?   // Department/Branch এর জন্য
-  
-  designation  String    
-  desk         String?   // UI-তে থাকা Desk/Unit এর জন্য
-  fromDate     DateTime
-  toDate       DateTime? 
-  isCurrent    Boolean   @default(false)
-  expertise    String?   // UI-তে থাকা Expertness/Core Skills এর জন্য
-  jobDetails   String?   @db.Text // UI-তে থাকা Key Responsibilities এর জন্য
-  
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  sector     String? // Sector/Industry এর জন্য
+  department String? // Department/Branch এর জন্য
+
+  designation String
+  desk        String? // UI-তে থাকা Desk/Unit এর জন্য
+  fromDate    DateTime
+  toDate      DateTime?
+  isCurrent   Boolean   @default(false)
+  expertise   String? // UI-তে থাকা Expertness/Core Skills এর জন্য
+  jobDetails  String?   @db.Text // UI-তে থাকা Key Responsibilities এর জন্য
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // রিলেশনটি মুছে দিতে হবে যদি আপনি Organization টেবিলের সাথে কানেক্ট না করতে চান।
   // অথবা যদি কানেক্ট করতে চান, তবে companyName কলামটি দিয়ে রিলেশন করতে হবে (যা সাধারণত ID দিয়ে করা হয়)।
@@ -241,11 +246,11 @@ model WorkExperience {
 }
 
 model SectorOrgWiseDesignation {
-  id               String   @id @default(cuid())
-  sector           String   // e.g., "Banking", "IT"
-  orgName          String   // e.g., "Jamuna Bank PLC" or "Global" (যদি সবার জন্য কমন হয়)
-  designation      String   // e.g., "Senior Officer", "Software Engineer"
-  
+  id          String @id @default(cuid())
+  sector      String // e.g., "Banking", "IT"
+  orgName     String // e.g., "Jamuna Bank PLC" or "Global" (যদি সবার জন্য কমন হয়)
+  designation String // e.g., "Senior Officer", "Software Engineer"
+
   @@index([sector])
   @@index([orgName])
 }
@@ -254,7 +259,7 @@ model SkillMaster {
   id        String   @id @default(cuid())
   name      String   @unique // ডিসপ্লে নাম: "React Native"
   slug      String   @unique // ইউনিক নাম: "react-native" (সার্চের জন্য সুবিধা)
-  category  String?  // IT, Creative, Marketing ইত্যাদি (ঐচ্ছিক)
+  category  String? // IT, Creative, Marketing ইত্যাদি (ঐচ্ছিক)
   count     Int      @default(1) // কতজন ইউজার এই স্কিল ব্যবহার করছে
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -263,18 +268,17 @@ model SkillMaster {
 }
 
 model Post {
-  id        String   @id @default(cuid())
-  content   String   @db.Text
+  id        String    @id @default(cuid())
+  content   String    @db.Text
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  nodeId    String?  // কোন নোড থেকে পোস্ট করা হয়েছে (যেমন: CUET)
-  node      Node?    @relation(fields: [nodeId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+  nodeId    String? // কোন নোড থেকে পোস্ট করা হয়েছে (যেমন: CUET)
+  node      Node?     @relation(fields: [nodeId], references: [id])
   likes     Like[]
   shares    Share[]
-  comments Comment[]
-  createdAt DateTime @default(now())
+  comments  Comment[]
+  createdAt DateTime  @default(now())
 }
-
 
 model Like {
   id     String @id @default(cuid())
@@ -282,6 +286,7 @@ model Like {
   postId String
   user   User   @relation(fields: [userId], references: [id])
   post   Post   @relation(fields: [postId], references: [id])
+
   @@unique([userId, postId]) // একজন একবারই লাইক দিতে পারবে
 }
 
@@ -301,4 +306,22 @@ model Comment {
   user      User     @relation(fields: [userId], references: [id])
   post      Post     @relation(fields: [postId], references: [id])
   createdAt DateTime @default(now())
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  content    String
+  senderId   String
+  receiverId String
+  nodeId     String? // Optional: কোন রুটের প্রেক্ষিতে চ্যাট হচ্ছে
+  createdAt  DateTime @default(now())
+
+  sender   User @relation("SentMessages", fields: [senderId], references: [id])
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id])
+
+  // রিলেশন (যদি আপনার Node নামে আলাদা মডেল থাকে)
+  node Node? @relation(fields: [nodeId], references: [id])
+
+  @@index([senderId, receiverId])
+  @@index([nodeId]) // সার্চ ফাস্ট করার জন্য
 }

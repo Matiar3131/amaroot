@@ -1,14 +1,19 @@
 "use server";
 
-import { prisma } from "@/app/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
 /**
  * ১. সব পোস্ট নিয়ে আসা (ফিড ও নেটওয়ার্কের জন্য)
+ * nodeId প্যারামিটার যোগ করা হয়েছে ফিল্টারিংয়ের জন্য
  */
-export async function getPosts() {
+export async function getPosts(nodeId?: string) {
   try {
     const posts = await prisma.post.findMany({
+      // যদি nodeId থাকে তবে শুধু সেই নোডের পোস্ট আসবে, নাহলে সব আসবে
+      where: nodeId ? {
+        nodeId: nodeId
+      } : {},
       include: {
         user: {
           select: {
@@ -38,6 +43,7 @@ export async function getPosts() {
       },
     });
 
+    // Prisma objects গুলোকে প্লেইন অবজেক্টে কনভার্ট করা (Next.js Server Actions এর জন্য নিরাপদ)
     return JSON.parse(JSON.stringify(posts));
   } catch (error) {
     console.error("Error fetching posts:", error);
@@ -66,12 +72,17 @@ export async function createPost(
       data: {
         content: content.trim(),
         userId: userId,
+        // nodeId যদি থাকে তবে সেটি সেভ হবে, নাহলে নাল থাকবে
         nodeId: nodeId || null,
       },
     });
 
     revalidatePath("/feed");
     revalidatePath("/network");
+    // যদি স্পেসিফিক নোড ফিল্টারে থাকে, তবে সেই পাথ রিভ্যালিডেট করা ভালো
+    if (nodeId) {
+      revalidatePath(`/network?nodeId=${nodeId}`);
+    }
 
     return { success: true, post: JSON.parse(JSON.stringify(post)) };
   } catch (error) {

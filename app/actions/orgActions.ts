@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@/app/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 export async function getOrgStructure(filter: { sector?: string; orgName?: string; department?: string }) {
   try {

@@ -1,128 +1,118 @@
 "use client";
-
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { User, MapPin, GraduationCap, Link2, ChevronDown, ChevronUp } from "lucide-react";
-import AddNodeModal from "./AddNodeModal"; // পাথটি আপনার ফোল্ডার অনুযায়ী চেক করে নিন
+import { useRouter, useSearchParams } from "next/navigation"; // URL হ্যান্ডেল করার জন্য
+import AddNodeModal from "./AddNodeModal";
 
-interface NodeItem {
-  id: string;
-  title: string;
-  type?: string;
-}
-
-export default function SidebarLeft({ 
-  userNodes = [], 
-  userId = "" // userId প্রপস হিসেবে নিতে হবে মডালের জন্য
-}: { 
-  userNodes?: NodeItem[];
-  userId?: string;
-}) {
+export default function SidebarLeft({ userNodes = [], userId = "" }: { userNodes?: any[]; userId?: string; }) {
   const [showAll, setShowAll] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  // বর্তমানে কোন নোডটি সিলেক্ট করা আছে তা URL থেকে নেওয়া
+  const activeNodeId = searchParams.get("nodeId");
+
   const initialNodes = 5;
   const nodesToProcess = Array.isArray(userNodes) ? userNodes : [];
   const displayedNodes = showAll ? nodesToProcess : nodesToProcess.slice(0, initialNodes);
 
-  // অটো-ক্ল্যাপস লজিক: ১৫ সেকেন্ড পর অটো ৫টি হয়ে যাবে
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (showAll) {
-      timer = setTimeout(() => {
-        setShowAll(false);
-      }, 15000);
+  // নোড ক্লিক হ্যান্ডলার
+  const handleNodeClick = (id: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (activeNodeId === id) {
+      params.delete("nodeId"); // যদি একই নোডে আবার ক্লিক করে তবে ফিল্টার রিমুভ হবে
+    } else {
+      params.set("nodeId", id); // নতুন নোড সিলেক্ট করলে URL এ আইডি সেট হবে
     }
-    return () => clearTimeout(timer);
-  }, [showAll]);
+    router.push(`/network?${params.toString()}`);
+  };
 
   return (
     <div className="space-y-4">
       {/* ১. প্রোফাইল কার্ড */}
-      <div className="bg-white rounded-[32px] overflow-hidden border border-slate-100 shadow-sm">
-        <div className="h-20 bg-gradient-to-r from-blue-600 to-indigo-600" />
-        <div className="px-6 pb-6">
-          <div className="relative -mt-10 mb-4">
-            <div className="w-20 h-20 bg-white rounded-3xl p-1 shadow-xl">
-              <div className="w-full h-full bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400">
-                <User size={40} />
+      <div className="bg-white rounded-[32px] overflow-hidden border border-slate-100 shadow-sm transition-all hover:shadow-md">
+        <div className="h-24 bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600" />
+        <div className="px-6 pb-6 text-center">
+          <div className="relative -mt-12 mb-3 inline-block">
+            <div className="w-24 h-24 bg-white rounded-[30px] p-1.5 shadow-xl mx-auto">
+              <div className="w-full h-full bg-slate-100 rounded-[22px] flex items-center justify-center text-slate-400 overflow-hidden">
+                <User size={48} />
               </div>
             </div>
           </div>
-          <h3 className="text-xl font-black text-slate-800 tracking-tight">মাতিয়ার রহমান</h3>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">
-            Software Developer | IT Specialist (Banking)
-          </p>
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center gap-3 text-slate-600">
-              <MapPin size={16} className="text-blue-500" />
-              <span className="text-sm font-medium">Dhaka, Bangladesh</span>
+          <h3 className="text-xl font-black text-slate-800 tracking-tight leading-tight">মাতিয়ার রহমান</h3>
+          <div className="flex flex-col gap-1 mt-2">
+            <span className="text-[10px] font-extrabold text-blue-600 uppercase tracking-widest bg-blue-50 py-1 px-3 rounded-full self-center">
+              IT Specialist (Banking)
+            </span>
+          </div>
+          
+          <div className="mt-5 space-y-2.5 border-t border-slate-50 pt-5">
+            <div className="flex items-center gap-3 text-slate-500 justify-center">
+              <MapPin size={14} className="text-blue-500" />
+              <span className="text-xs font-bold tracking-tight">Dhaka, Bangladesh</span>
             </div>
-            <div className="flex items-center gap-3 text-slate-600">
-              <GraduationCap size={16} className="text-blue-500" />
-              <span className="text-sm font-medium">CUET CSE</span>
+            <div className="flex items-center gap-3 text-slate-500 justify-center">
+              <GraduationCap size={14} className="text-blue-500" />
+              <span className="text-xs font-bold tracking-tight">CUET CSE</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* ২. ডাইনামিক রুট লিস্ট */}
-      <div className="bg-white rounded-[32px] p-6 border border-slate-100 shadow-sm transition-all duration-500">
-        <div className="flex items-center justify-between mb-4">
-          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-            আপনার আইডেন্টিটি রুট
-          </h4>
-          <span className="bg-blue-50 text-blue-600 text-[10px] px-2 py-1 rounded-lg font-bold">
+      <div className="bg-white rounded-[32px] p-6 border border-slate-100 shadow-sm">
+        <div className="flex items-center justify-between mb-5 px-1">
+          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">আইডেন্টিটি রুট</h4>
+          <span className="bg-slate-100 text-slate-600 text-[10px] px-2.5 py-1 rounded-full font-black">
             {nodesToProcess.length}
           </span>
         </div>
         
-        <div className="space-y-2 transition-all duration-500">
+        <div className="space-y-2.5">
           {displayedNodes.map((node) => (
-            <div key={node.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl hover:bg-blue-50 transition-all cursor-pointer group border border-transparent hover:border-blue-100">
+            <div 
+              key={node.id} 
+              onClick={() => handleNodeClick(node.id)}
+              className={`flex items-center justify-between p-2.5 rounded-2xl transition-all cursor-pointer group border ${
+                activeNodeId === node.id 
+                ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200' 
+                : 'bg-slate-50/50 border-transparent hover:bg-white hover:shadow-md hover:border-blue-100 text-slate-700'
+              }`}
+            >
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-white rounded-xl text-blue-600 shadow-sm">
+                <div className={`p-2 rounded-xl shadow-sm transition-colors ${
+                  activeNodeId === node.id ? 'bg-white/20 text-white' : 'bg-white text-blue-600 group-hover:bg-blue-600 group-hover:text-white'
+                }`}>
                   <Link2 size={14} />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-xs font-bold text-slate-700">{node.title}</span>
-                  <span className="text-[8px] font-bold text-slate-400 uppercase">{node.type || "General"}</span>
+                  <span className={`text-xs font-black leading-none mb-1 ${activeNodeId === node.id ? 'text-white' : 'text-slate-700'}`}>
+                    {node.title}
+                  </span>
+                  <span className={`text-[8px] font-bold uppercase tracking-tighter ${activeNodeId === node.id ? 'text-blue-100' : 'text-slate-400'}`}>
+                    {node.type || "General"}
+                  </span>
                 </div>
               </div>
-              <div className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
+              <div className={`w-1.5 h-1.5 rounded-full animate-pulse mr-1 ${activeNodeId === node.id ? 'bg-white' : 'bg-blue-500'}`} />
             </div>
           ))}
 
-          {/* View More / View Less Toggle Button */}
           {nodesToProcess.length > initialNodes && (
-            <button 
-              onClick={() => setShowAll(!showAll)}
-              className="w-full flex items-center justify-center gap-2 py-2.5 text-[10px] font-black text-blue-600 hover:bg-blue-50 rounded-xl transition-all uppercase mt-2 border border-blue-100/50"
-            >
-              {showAll ? (
-                <>View Less <ChevronUp size={14} /></>
-              ) : (
-                <>View More ({nodesToProcess.length - initialNodes}) <ChevronDown size={14} /></>
-              )}
+            <button onClick={() => setShowAll(!showAll)} className="w-full py-2 text-[10px] font-black text-slate-400 hover:text-blue-600 transition-all uppercase mt-1">
+              {showAll ? <><ChevronUp size={12} className="inline mr-1"/> View Less</> : `+ ${nodesToProcess.length - initialNodes} more nodes`}
             </button>
           )}
+
+          <button onClick={() => setIsModalOpen(true)} className="w-full mt-2 py-3.5 border-2 border-dashed border-slate-100 rounded-2xl text-[10px] font-black text-slate-400 hover:border-blue-200 hover:text-blue-600 hover:bg-blue-50/30 transition-all uppercase">
+            Add New Route
+          </button>
         </div>
-
-        {/* নতুন রুট যোগ করার বাটন */}
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="w-full mt-4 py-3 border border-dashed border-slate-200 rounded-2xl text-[10px] font-black text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all uppercase"
-        >
-          + নতুন রুট যোগ করুন
-        </button>
       </div>
-
-      {/* ৩. মডাল কম্পোনেন্ট ইমপ্লিমেন্টেশন */}
-      <AddNodeModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        userId={userId}
-        existingNodes={nodesToProcess} // অলরেডি থাকা রুটগুলো পাস করছি ফিল্টারিং এর জন্য
-      />
+      <AddNodeModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} userId={userId} existingNodes={nodesToProcess} />
     </div>
   );
 }

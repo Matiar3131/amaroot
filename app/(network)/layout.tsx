@@ -10,7 +10,7 @@ export default async function NetworkLayout({ children }: { children: React.Reac
 
   return (
     <div className="bg-[#F8FAFC] min-h-screen">
-      <div className="max-w-[1440px] mx-auto pt-16 px-4 pb-6">
+      <div className="max-w-[1440px] mx-auto pt-4 px-4 pb-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <aside className="hidden lg:block lg:col-span-3 sticky top-20 h-fit">
             <SidebarLeft userNodes={userNodes} userId={userId || ""} />

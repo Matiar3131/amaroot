@@ -1,4 +1,4 @@
-import { prisma } from "@/app/lib/prisma"; // আপনার আগের কথা অনুযায়ী এই পাথটি সঠিক
+import { prisma } from "@/lib/prisma"; // আপনার আগের কথা অনুযায়ী এই পাথটি সঠিক
 import { auth } from "@/app/lib/auth"; // সাধারণত auth রুটে থাকে
 import Image from "next/image";
 import { notFound } from "next/navigation";

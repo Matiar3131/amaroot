@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { signUpAction } from '@/app/lib/actions/auth';
+import { signUpAction } from '@/lib/actions-auth';
 import { signIn } from 'next-auth/react';
 
 // মেইন কম্পোনেন্টকে Suspense দিয়ে র‍্যাপ করতে হয় যখন useSearchParams ব্যবহার করা হয়

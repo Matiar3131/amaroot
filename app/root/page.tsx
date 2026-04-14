@@ -1,5 +1,5 @@
 import { auth } from "@/app/lib/auth";
-import { prisma } from "@/app/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import RootClient from "./RootClient";
 

@@ -1,6 +1,6 @@
 import { auth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@/app/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import { getNetworkConnections } from "@/app/actions/nodeActions";
 import Link from "next/link";
 import {
