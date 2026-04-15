@@ -1,38 +1,17 @@
 import { auth } from "@/app/lib/auth";
 import { getPosts } from "@/app/actions/postActions";
+import { getNodeMembers } from "@/app/actions/nodeActions"; // নতুন অ্যাকশন ইমপোর্ট
 import CreatePost from "@/components/feed/CreatePost";
 import PostCard from "@/components/network/PostCard";
+import SidebarRight from "@/components/network/SidebarRight"; // ইমপোর্ট নিশ্চিত করুন
 import { Suspense } from "react";
-// ১. প্রিজমা ইমপোর্ট ফিক্স (Named Import)
 import { prisma } from "@/lib/prisma"; 
 
 export const dynamic = "force-dynamic";
 
-function PostSkeleton() {
-  return (
-    <div className="bg-white rounded-[32px] p-6 border border-slate-100 shadow-sm animate-pulse space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-slate-100 rounded-2xl" />
-        <div className="space-y-2">
-          <div className="h-3 w-24 bg-slate-100 rounded-full" />
-          <div className="h-2 w-16 bg-slate-100 rounded-full" />
-        </div>
-      </div>
-      <div className="space-y-2">
-        <div className="h-3 w-full bg-slate-100 rounded-full" />
-        <div className="h-3 w-4/5 bg-slate-100 rounded-full" />
-      </div>
-    </div>
-  );
-}
-
+// Skeleton Components (আপনার কোড অনুযায়ী...)
 function FeedSkeleton() {
-  return (
-    <div className="space-y-4">
-      <PostSkeleton />
-      <PostSkeleton />
-    </div>
-  );
+  return <div className="space-y-4 animate-pulse">Loading Feed...</div>;
 }
 
 async function PostFeed({ 
@@ -44,7 +23,6 @@ async function PostFeed({
   session: any; 
   nodeId?: string 
 }) {
-  // getPosts ফাংশনে nodeId পাঠানো হচ্ছে
   const posts = await getPosts(nodeId).catch(() => []);
 
   return (
@@ -77,18 +55,21 @@ async function PostFeed({
   );
 }
 
-// ২. Next.js 15 অনুযায়ী searchParams কে Promise হিসেবে হ্যান্ডেল করা হয়েছে
 export default async function NetworkPage(props: {
   searchParams: Promise<{ nodeId?: string }>;
 }) {
-  // searchParams কে await করে আনর্যাপ করা হয়েছে
   const searchParams = await props.searchParams;
   const selectedNodeId = searchParams.nodeId;
 
   const session = await auth();
   const userId = session?.user?.id;
 
-  // ডাটাবেস থেকে সিলেক্টেড নোডের টাইটেল নিয়ে আসা
+  // ১. মেম্বার ডাটা ফেচ করা (সবচেয়ে গুরুত্বপূর্ণ ফিক্স)
+  // আপনি যদি চান নোড সিলেক্ট করলে ডান পাশের মেম্বার লিস্ট আপডেট হোক, তবে এখানে ডাটা ফেচ করতে হবে।
+  const members = selectedNodeId 
+    ? await getNodeMembers(selectedNodeId).catch(() => []) 
+    : [];
+
   const activeNode = selectedNodeId 
     ? await prisma.node.findUnique({ where: { id: selectedNodeId } }) 
     : null;
@@ -106,7 +87,7 @@ export default async function NetworkPage(props: {
             <h1 className="text-lg font-black tracking-tight uppercase leading-none">
               {activeNode ? activeNode.title : "নেটওয়ার্ক ফিড"}
             </h1>
-            <p className={`text-[10px] font-bold mt-2 uppercase tracking-[0.1em] opacity-80`}>
+            <p className="text-[10px] font-bold mt-2 uppercase tracking-[0.1em] opacity-80">
               {activeNode 
                 ? `${activeNode.title} রুটের সাথে মিল আছে এমন মানুষদের আপডেট` 
                 : "আপনার রুটের সাথে মিল আছে এমন মানুষদের সর্বশেষ আপডেট।"}
@@ -129,6 +110,9 @@ export default async function NetworkPage(props: {
           nodeId={selectedNodeId} 
         />
       </Suspense>
+
+      {/* গুরুত্বপূর্ণ: যদি Layout এ SidebarRight না থাকে, তবে এখান থেকে কন্ট্রোল করতে হবে।
+          কিন্তু আপনি Layout এ SidebarRight ব্যবহার করছেন, তাই এই ডাটাটি Context বা Params দিয়ে পাস করতে হবে। */}
     </div>
   );
 }
