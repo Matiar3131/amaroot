@@ -10,6 +10,8 @@ import VideoCallModal from "@/components/chat/VideoCallModal";
 import { getNodeMembers } from "@/app/actions/nodeActions";
 import { Member, Message, SidebarRightProps } from "@/types/sidebar";
 import { Search, MoreHorizontal } from "lucide-react";
+import { pusherClient } from "@/lib/pusher"; // নিশ্চিত করুন এই পাথটি সঠিক
+import axios from "axios"; // axios অথবা fetch ব্যবহার করতে পারেন
 
 export default function SidebarRight({ currentUser }: SidebarRightProps) {
   const searchParams = useSearchParams();
@@ -25,15 +27,13 @@ export default function SidebarRight({ currentUser }: SidebarRightProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [videoToken, setVideoToken] = useState<string | null>(null);
   const [roomName, setRoomName] = useState<string | null>(null);
-  
-  // মিসিং স্টেটগুলো এখানে যোগ করা হলো (এরর ১ ফিক্স করতে)
   const [hoveredMember, setHoveredMember] = useState<string | null>(null);
   const [isAllMembersOpen, setIsAllMembersOpen] = useState(true);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null); // এরর ২ ফিক্স করতে
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // মেম্বার ফেচিং
+  // ১. মেম্বার ফেচিং
   useEffect(() => {
     let isMounted = true;
     async function loadMembers() {
@@ -45,29 +45,78 @@ export default function SidebarRight({ currentUser }: SidebarRightProps) {
       } catch (error) {
         console.error("Error fetching members:", error);
       } finally {
-        if (isMounted) setLoading(true);
+        if (isMounted) setLoading(false);
       }
     }
     loadMembers();
     return () => { isMounted = false; };
   }, [nodeId, currentUser?.id]);
 
-  // ফিল্টারিং
+  // ২. রিয়েল-টাইম মেসেজ লিসেনার (Pusher)
+  useEffect(() => {
+    if (!currentUser?.id || !pusherClient) return;
+
+    // ইউজারের নিজস্ব চ্যানেলে সাবস্ক্রাইব করা
+    const channel = pusherClient.subscribe(`user-${currentUser.id}`);
+
+    const messageHandler = (newMessage: Message) => {
+      // যদি মেসেজটি বর্তমান চ্যাট উইন্ডোর ইউজারের কাছ থেকে আসে
+      if (activeChat && (newMessage.senderId === activeChat.id || newMessage.senderId === currentUser.id)) {
+        setMessages((prev) => [...prev, newMessage]);
+        // স্ক্রল নিচে নামানো
+        setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      }
+    };
+
+    channel.bind("incoming-message", messageHandler);
+
+    return () => {
+      pusherClient?.unsubscribe(`user-${currentUser.id}`);
+      channel.unbind("incoming-message", messageHandler);
+    };
+  }, [currentUser?.id, activeChat]);
+
+  // ৩. পুরনো মেসেজ লোড করা (যখন চ্যাট ওপেন হয়)
+  useEffect(() => {
+    if (activeChat && currentUser?.id) {
+      const fetchMessages = async () => {
+        try {
+          const res = await axios.get(`/api/messages?userId=${activeChat.id}`);
+          setMessages(res.data);
+        } catch (error) {
+          console.error("Error fetching messages:", error);
+        }
+      };
+      fetchMessages();
+    }
+  }, [activeChat, currentUser?.id]);
+
   const filteredMembers = useMemo(() => 
     members.filter((m) => m?.name?.toLowerCase().includes(searchTerm.toLowerCase())),
     [members, searchTerm]
   );
 
-  const handleSend = (e?: React.FormEvent) => {
+  // ৪. মেসেজ পাঠানোর ফাংশন
+  const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!inputMessage.trim()) return;
-    const newMessage: Message = {
-      senderId: currentUser?.id ?? "anonymous",
-      content: inputMessage,
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, newMessage]);
-    setInputMessage("");
+    if (!inputMessage.trim() || !activeChat || !currentUser) return;
+
+    const currentMsg = inputMessage;
+    setInputMessage(""); // ইনপুট ক্লিয়ার
+
+    try {
+      // সার্ভারে পাঠানো (এটি Neon DB-তে সেভ করবে এবং Pusher trigger করবে)
+      await axios.post("/api/messages", {
+        content: currentMsg,
+        receiverId: activeChat.id,
+        nodeId: nodeId
+      });
+      
+      // নোট: Pusher ইভেন্ট ফায়ার হলে উপরের useEffect মেসেজটি অটোমেটিক স্ক্রিনে যোগ করবে।
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      alert("মেসেজ পাঠানো যায়নি!");
+    }
   };
 
   return (
@@ -93,29 +142,29 @@ export default function SidebarRight({ currentUser }: SidebarRightProps) {
             placeholder="Search..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-gray-100 border-none rounded-2xl py-2 pl-10 pr-4 text-sm"
+            className="w-full bg-gray-100 border-none rounded-2xl py-2 pl-10 pr-4 text-sm outline-none focus:ring-1 focus:ring-blue-200"
           />
           <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
         </div>
       </div>
 
-      {/* ৩. মেম্বার লিস্ট (FIXED PROPS) */}
-      <div className="flex-1 overflow-y-auto px-2">
+      {/* মেম্বার লিস্ট */}
+      <div className="flex-1 overflow-y-auto px-2 scrollbar-hide">
         <SidebarMembers
           members={filteredMembers}
           loading={loading}
           onMemberClick={(m) => {
             setActiveChat(m);
-            setMessages([]);
+            setMessages([]); // নতুন চ্যাট ওপেন হলে আগের মেসেজ ক্লিয়ার হবে, তারপর fetch হবে
           }}
-          hoveredMember={hoveredMember} // যোগ করা হয়েছে
-          setHoveredMember={setHoveredMember} // যোগ করা হয়েছে
-          isAllMembersOpen={isAllMembersOpen} // যোগ করা হয়েছে
-          setIsAllMembersOpen={setIsAllMembersOpen} // যোগ করা হয়েছে
+          hoveredMember={hoveredMember}
+          setHoveredMember={setHoveredMember}
+          isAllMembersOpen={isAllMembersOpen}
+          setIsAllMembersOpen={setIsAllMembersOpen}
         />
       </div>
 
-      {/* ৪. মেসেজিং টগল */}
+      {/* মেসেজিং টগল */}
       <div className="p-4 border-t border-gray-50 bg-gray-50/30">
         <SidebarToggle 
           isMessagingOpen={isMessagingOpen}
@@ -127,10 +176,15 @@ export default function SidebarRight({ currentUser }: SidebarRightProps) {
         />
       </div>
 
-      {/* ৫. চ্যাট উইন্ডো (FIXED PROPS) */}
+      {/* চ্যাট উইন্ডো */}
       <AnimatePresence>
         {activeChat && (
-          <motion.div initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }} className="absolute bottom-4 right-4 left-4 z-50">
+          <motion.div 
+            initial={{ y: 100, opacity: 0 }} 
+            animate={{ y: 0, opacity: 1 }} 
+            exit={{ y: 100, opacity: 0 }} 
+            className="absolute bottom-4 right-4 left-4 z-50"
+          >
             <SidebarChat
               activeChat={activeChat}
               messages={messages}
@@ -145,7 +199,6 @@ export default function SidebarRight({ currentUser }: SidebarRightProps) {
                 setRoomName(`room_${activeChat.id}`);
                 setVideoToken("sample_token");
               }}
-              // মিসিং প্রপসগুলো নিচে যোগ করা হলো
               fileInputRef={fileInputRef} 
               startUpload={async (files) => console.log(files)}
             />
