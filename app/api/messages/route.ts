@@ -1,41 +1,39 @@
 import { pusherServer } from "@/lib/pusher";
 import { NextResponse } from "next/server";
-// আপনার database instance ইমপোর্ট করুন (Prisma ব্যবহার করলে এমন হবে)
-// import { db } from "@/lib/db"; 
+import { auth } from "@/app/lib/auth"; // আপনার auth path অনুযায়ী নিশ্চিত করুন
 
 export async function POST(req: Request) {
   try {
+    const session = await auth(); // সেশন থেকে লগইন করা ইউজারকে নিন
+    
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
-    const { content, receiverId, nodeId } = body;
+    const { content, receiverId } = body;
 
-    // ১. এখানে আপনার ডাটাবেসে মেসেজটি সেভ করার লজিক দিন
-    // const newMessage = await db.message.create({
-    //   data: {
-    //     content,
-    //     receiverId,
-    //     senderId: "current_user_id", // সেশন থেকে ইউজার আইডি নিতে হবে
-    //   }
-    // });
+    if (!content || !receiverId) {
+      return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+    }
 
-    // ২. পুশার ট্রিগার করা (এটিই রিয়েল-টাইমে অন্য ইউজারকে মেসেজ পাঠাবে)
+    // পুশার ট্রিগার: এটিই রিয়েল-টাইমে মেসেজ পাঠাবে
     await pusherServer.trigger(`user-${receiverId}`, "incoming-message", {
       content,
-      senderId: "sender_id_here", // সেশন থেকে প্রাপ্ত আইডি
+      senderId: session.user.id, // আপনার আইডি
       timestamp: new Date().toISOString(),
     });
 
-    // ৩. নিজের স্ক্রিনেও আপডেট পাওয়ার জন্য নিজের আইডিতেও ট্রিগার করতে পারেন
-    // await pusherServer.trigger(`user-sender_id`, "incoming-message", { ... });
+    // নিজের আইডিতেও ট্রিগার করুন যেন নিজের চ্যাট উইন্ডো আপডেট হয়
+    await pusherServer.trigger(`user-${session.user.id}`, "incoming-message", {
+      content,
+      senderId: session.user.id,
+      timestamp: new Date().toISOString(),
+    });
 
-    return NextResponse.json({ success: true, message: "Sent successfully" });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("PUSHER TRIGGER ERROR:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
-}
-
-// পুরনো মেসেজ ফেচ করার জন্য GET মেথড
-export async function GET(req: Request) {
-    // এখানে ডাটাবেস থেকে মেসেজ তুলে আনার লজিক থাকবে
-    return NextResponse.json([]); 
 }
