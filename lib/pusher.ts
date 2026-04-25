@@ -1,11 +1,7 @@
 import PusherServer from "pusher";
 import PusherClient from "pusher-js";
 
-if (typeof window !== "undefined") {
-  PusherClient.logToConsole = true;
-}
-
-// ১. সার্ভার সাইড কনফিগ (এটি শুধু Actions/Server Components এ ব্যবহার হবে)
+// ১. সার্ভার সাইড কনফিগ (এটি শুধু API Routes বা Server Actions-এ ব্যবহার হবে)
 export const pusherServer = new PusherServer({
   appId: process.env.PUSHER_APP_ID!,
   key: process.env.NEXT_PUBLIC_PUSHER_KEY!,
@@ -14,14 +10,25 @@ export const pusherServer = new PusherServer({
   useTLS: true,
 });
 
-
 /**
- * ২. ক্লায়েন্ট সাইড কনফিগ (এটি শুধু Client Components এ ব্যবহার হবে)
- * আমরা এটি চেক করছি যেন সার্ভার সাইড রেন্ডারিং (SSR) এর সময় এটি কল না হয়।
+ * ২. ক্লায়েন্ট সাইড কনফিগ
  */
-export const pusherClient = typeof window !== "undefined" 
-  ? new PusherClient(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+
+// ডেভেলপমেন্ট মোডে কনসোলে লগ দেখার জন্য
+if (typeof window !== "undefined") {
+  PusherClient.logToConsole = true;
+}
+
+// ক্লায়েন্ট কী চেক (ডিবাগিং এর জন্য)
+const pusherKey = process.env.NEXT_PUBLIC_PUSHER_KEY;
+if (typeof window !== "undefined" && !pusherKey) {
+  console.error("CRITICAL: Pusher Key is missing in Environment Variables!");
+}
+
+export const pusherClient = (typeof window !== "undefined" && pusherKey
+  ? new PusherClient(pusherKey, {
       cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || "ap2",
       forceTLS: true,
+      enabledTransports: ['ws', 'wss'],
     })
-  : null;
+  : null) as PusherClient | null;
