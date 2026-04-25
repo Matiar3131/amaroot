@@ -1,44 +1,99 @@
 import { pusherServer } from "@/lib/pusher";
 import { NextResponse } from "next/server";
-import { auth } from "@/app/lib/auth"; // আপনার প্রোজেক্টের সঠিক পাথ নিশ্চিত করুন
+import { auth } from "@/app/lib/auth";
+import { prisma } from "@/lib/prisma"; // আপনার Prisma client
 
-export async function POST(req: Request) {
+// পুরনো messages আনার জন্য
+export async function GET(req: Request) {
   try {
-    // ১. সেশন থেকে লগইন করা ইউজারকে নিন
-    const session = await auth(); 
-    
+    const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // ২. রিকোয়েস্ট বডি থেকে ডাটা নিন
+    const { searchParams } = new URL(req.url);
+    const otherUserId = searchParams.get("userId");
+
+    if (!otherUserId) {
+      return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+    }
+
+    const messages = await db.message.findMany({
+      where: {
+        OR: [
+          { senderId: session.user.id, receiverId: otherUserId },
+          { senderId: otherUserId, receiverId: session.user.id },
+        ],
+      },
+      orderBy: { createdAt: "asc" },
+      take: 50,
+    });
+
+    // Frontend এর Message type এর সাথে মিলানো
+    const formatted = messages.map((msg) => ({
+      id: msg.id,
+      content: msg.content,
+      senderId: msg.senderId,
+      receiverId: msg.receiverId,
+      timestamp: msg.createdAt,
+    }));
+
+    return NextResponse.json(formatted);
+  } catch (error) {
+    console.error("GET /api/messages ERROR:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json();
     const { content, receiverId } = body;
 
-    // ৩. ভ্যালিডেশন চেক
-    if (!content || !receiverId) {
+    if (!content?.trim() || !receiverId) {
       return NextResponse.json({ error: "Missing content or receiverId" }, { status: 400 });
     }
 
-    // ৪. পুশার ট্রিগার (রিসিভারের জন্য)
-    // এটি অন্য ইউজারের স্ক্রিনে রিয়েল-টাইমে মেসেজ পাঠাবে
-    await pusherServer.trigger(`user-${receiverId}`, "incoming-message", {
-      content,
-      senderId: session.user.id,
-      timestamp: new Date().toISOString(),
+    // ✅ Database এ save করুন
+    const newMessage = await db.message.create({
+      data: {
+        content,
+        senderId: session.user.id,
+        receiverId,
+      },
     });
 
-    // ৫. পুশার ট্রিগার (নিজের জন্য)
-    // এটি আপনার নিজের অন্য কোনো ট্যাব বা ডিভাইসে চ্যাট উইন্ডো আপডেট করবে
-    await pusherServer.trigger(`user-${session.user.id}`, "incoming-message", {
-      content,
-      senderId: session.user.id,
-      timestamp: new Date().toISOString(),
-    });
+    const messagePayload = {
+      id: newMessage.id,
+      content: newMessage.content,
+      senderId: newMessage.senderId,
+      receiverId: newMessage.receiverId,
+      timestamp: newMessage.createdAt.toISOString(),
+    };
 
-    return NextResponse.json({ success: true, message: "Message sent via Pusher" });
+    // ✅ শুধু RECEIVER কে trigger করুন (sender নিজেই optimistic update করবে)
+    await pusherServer.trigger(
+      `user-${receiverId}`,
+      "incoming-message",
+      messagePayload
+    );
+
+    // ✅ Sender কে তার নিজের message confirm করতে trigger
+    // (অন্য device/tab এর জন্য)
+    await pusherServer.trigger(
+      `user-${session.user.id}`,
+      "message-sent",  // আলাদা event নাম
+      messagePayload
+    );
+
+    return NextResponse.json(messagePayload);
   } catch (error) {
-    console.error("PUSHER TRIGGER ERROR:", error);
+    console.error("POST /api/messages ERROR:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

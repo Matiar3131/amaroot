@@ -10,6 +10,7 @@ export interface Message {
   id?: string;
   senderId: string;
   content: string;
+  receiverId: string;    // ✅ এটা যোগ করুন
   timestamp: Date;
   fileUrl?: string;
 }
