@@ -1,6 +1,10 @@
 import PusherServer from "pusher";
 import PusherClient from "pusher-js";
 
+if (typeof window !== "undefined") {
+  PusherClient.logToConsole = true;
+}
+
 // ১. সার্ভার সাইড কনফিগ (এটি শুধু Actions/Server Components এ ব্যবহার হবে)
 export const pusherServer = new PusherServer({
   appId: process.env.PUSHER_APP_ID!,
@@ -9,6 +13,7 @@ export const pusherServer = new PusherServer({
   cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
   useTLS: true,
 });
+
 
 /**
  * ২. ক্লায়েন্ট সাইড কনফিগ (এটি শুধু Client Components এ ব্যবহার হবে)
