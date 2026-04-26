@@ -46,12 +46,14 @@ export function SidebarChat({
   typingUser,
   onVideoCall,
 }: SidebarChatProps) {
-  // ✅ scroll ref এখন এই component এর নিজের
-  const bottomRef = useRef<HTMLDivElement>(null);
+  // ✅ Container ref — scrollIntoView নয়, scrollTop ব্যবহার করব
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // ✅ messages বদলালে auto-scroll
+  // ✅ messages বদলালে container এর scrollTop = scrollHeight
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
   }, [messages]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -110,8 +112,11 @@ export function SidebarChat({
         </div>
       </div>
 
-      {/* মেসেজ এরিয়া */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-slate-50/30 scrollbar-hide">
+      {/* ✅ মেসেজ এরিয়া — ref এখানে */}
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-slate-50/30 scrollbar-hide"
+      >
         {messages.length === 0 ? (
           <div className="text-center py-10">
             <div className="bg-blue-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -150,8 +155,6 @@ export function SidebarChat({
             <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }} />
           </div>
         )}
-        {/* ✅ scroll এখানে আসবে */}
-        <div ref={bottomRef} />
       </div>
 
       {/* ইনপুট */}

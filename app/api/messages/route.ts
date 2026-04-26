@@ -78,13 +78,13 @@ export async function POST(req: Request) {
       "incoming-message",
       messagePayload
     );
-
+{/*
     await pusherServer.trigger(
       `user-${session.user.id}`,
       "message-sent",
       messagePayload
     );
-
+*/}
     return NextResponse.json(messagePayload);
   } catch (error) {
     console.error("POST /api/messages ERROR:", error);
