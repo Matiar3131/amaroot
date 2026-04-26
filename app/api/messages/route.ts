@@ -1,9 +1,8 @@
 import { pusherServer } from "@/lib/pusher";
 import { NextResponse } from "next/server";
 import { auth } from "@/app/lib/auth";
-import { prisma } from "@/lib/prisma"; // আপনার Prisma client
+import { prisma } from "@/lib/prisma";
 
-// পুরনো messages আনার জন্য
 export async function GET(req: Request) {
   try {
     const session = await auth();
@@ -18,7 +17,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
-    const messages = await db.message.findMany({
+    const messages = await prisma.message.findMany({
       where: {
         OR: [
           { senderId: session.user.id, receiverId: otherUserId },
@@ -29,7 +28,6 @@ export async function GET(req: Request) {
       take: 50,
     });
 
-    // Frontend এর Message type এর সাথে মিলানো
     const formatted = messages.map((msg) => ({
       id: msg.id,
       content: msg.content,
@@ -59,8 +57,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing content or receiverId" }, { status: 400 });
     }
 
-    // ✅ Database এ save করুন
-    const newMessage = await db.message.create({
+    const newMessage = await prisma.message.create({
       data: {
         content,
         senderId: session.user.id,
@@ -76,18 +73,15 @@ export async function POST(req: Request) {
       timestamp: newMessage.createdAt.toISOString(),
     };
 
-    // ✅ শুধু RECEIVER কে trigger করুন (sender নিজেই optimistic update করবে)
     await pusherServer.trigger(
       `user-${receiverId}`,
       "incoming-message",
       messagePayload
     );
 
-    // ✅ Sender কে তার নিজের message confirm করতে trigger
-    // (অন্য device/tab এর জন্য)
     await pusherServer.trigger(
       `user-${session.user.id}`,
-      "message-sent",  // আলাদা event নাম
+      "message-sent",
       messagePayload
     );
 
