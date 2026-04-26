@@ -29,9 +29,7 @@ export default function SidebarRight({ currentUser }: SidebarRightProps) {
   const [hoveredMember, setHoveredMember] = useState<string | null>(null);
   const [isAllMembersOpen, setIsAllMembersOpen] = useState(true);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // ✅ activeChat কে ref এ রাখুন যাতে Pusher handler stale closure না হয়
   const activeChatRef = useRef<Member | null>(null);
 
   useEffect(() => {
@@ -57,34 +55,20 @@ export default function SidebarRight({ currentUser }: SidebarRightProps) {
     return () => { isMounted = false; };
   }, [nodeId, currentUser?.id]);
 
-  // ✅ ২. Pusher listener - activeChat এর উপর dependency নেই, ref ব্যবহার করছি
+  // ২. Pusher listener — শুধু incoming-message, sentHandler নেই
   useEffect(() => {
     if (!currentUser?.id || !pusherClient) return;
 
     const channelName = `user-${currentUser.id}`;
     const channel = pusherClient.subscribe(channelName);
 
-    // Receiver হিসেবে নতুন message আসলে
     const incomingHandler = (newMessage: Message) => {
       const currentActiveChat = activeChatRef.current;
+      // শুধু receiver এর message add করব, sender এর নিজের message নয়
       if (
         currentActiveChat &&
-        (newMessage.senderId === currentActiveChat.id ||
-          newMessage.receiverId === currentActiveChat.id)
+        newMessage.senderId === currentActiveChat.id // ✅ শুধু অন্যজনের message
       ) {
-        setMessages((prev) => {
-          // Duplicate check
-          if (prev.some((m) => m.id === newMessage.id)) return prev;
-          return [...prev, newMessage];
-        });
-        setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-      }
-    };
-
-    // Sender হিসেবে নিজের message অন্য device এ sync করতে
-    const sentHandler = (newMessage: Message) => {
-      const currentActiveChat = activeChatRef.current;
-      if (currentActiveChat && newMessage.receiverId === currentActiveChat.id) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === newMessage.id)) return prev;
           return [...prev, newMessage];
@@ -93,26 +77,21 @@ export default function SidebarRight({ currentUser }: SidebarRightProps) {
     };
 
     channel.bind("incoming-message", incomingHandler);
-    channel.bind("message-sent", sentHandler);
 
     return () => {
       channel.unbind("incoming-message", incomingHandler);
-      channel.unbind("message-sent", sentHandler);
       pusherClient?.unsubscribe(channelName);
     };
-  }, [currentUser?.id]); // ✅ শুধু currentUser.id, activeChat নয়!
+  }, [currentUser?.id]);
 
   // ৩. পুরনো messages load
   useEffect(() => {
     if (!activeChat || !currentUser?.id) return;
-    
-    setMessages([]); // আগের messages clear
-    
+    setMessages([]);
     const fetchMessages = async () => {
       try {
         const res = await axios.get(`/api/messages?userId=${activeChat.id}`);
         setMessages(res.data);
-        setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
       } catch (error) {
         console.error("Error fetching messages:", error);
       }
@@ -125,7 +104,7 @@ export default function SidebarRight({ currentUser }: SidebarRightProps) {
     [members, searchTerm]
   );
 
-  // ✅ ৪. Message পাঠানো - Optimistic update সহ
+  // ৪. Message পাঠানো — Optimistic update, sentHandler নেই তাই duplicate হবে না
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!inputMessage.trim() || !activeChat || !currentUser) return;
@@ -133,16 +112,14 @@ export default function SidebarRight({ currentUser }: SidebarRightProps) {
     const currentMsg = inputMessage;
     setInputMessage("");
 
-    // Optimistic update - সাথে সাথে UI তে দেখানো
     const tempMessage: Message = {
       id: `temp-${Date.now()}`,
       content: currentMsg,
-       senderId: currentUser.id ?? "",  
+      senderId: currentUser.id ?? "",
       receiverId: activeChat.id,
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, tempMessage]);
-    setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
 
     try {
       const res = await axios.post("/api/messages", {
@@ -150,22 +127,20 @@ export default function SidebarRight({ currentUser }: SidebarRightProps) {
         receiverId: activeChat.id,
         nodeId,
       });
-
-      // Temp message কে real message দিয়ে replace করুন
+      // temp message কে real message দিয়ে replace
       setMessages((prev) =>
         prev.map((m) => (m.id === tempMessage.id ? res.data : m))
       );
     } catch (error) {
       console.error("Failed to send message:", error);
-      // Failed হলে temp message সরিয়ে দিন
       setMessages((prev) => prev.filter((m) => m.id !== tempMessage.id));
-      alert("মেসেজ পাঠানো যায়নি! আবার চেষ্টা করুন।");
+      alert("মেসেজ পাঠানো যায়নি!");
     }
   };
 
   return (
     <div className="h-[calc(100vh-110px)] sticky top-24 flex flex-col bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
-      
+
       <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-white/50 backdrop-blur-md">
         <div>
           <h3 className="font-bold text-gray-800 text-lg">Network</h3>
@@ -230,7 +205,6 @@ export default function SidebarRight({ currentUser }: SidebarRightProps) {
               handleSend={handleSend}
               setActiveChat={setActiveChat}
               typingUser={null}
-              scrollRef={scrollRef}
               onVideoCall={() => {
                 setRoomName(`room_${activeChat.id}`);
                 setVideoToken("sample_token");
